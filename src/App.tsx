@@ -249,6 +249,10 @@ function App() {
       <main className="mx-auto max-w-[1760px] space-y-4 px-4 py-5">
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
 
+        {dailyDetailOpen && data ? (
+          <DailyDetailPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
+        ) : (
+          <>
         <section className="premium-card rounded-[1.6rem] p-4">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
@@ -512,11 +516,13 @@ function App() {
           </>
         )}
 
+          </>
+        )}
+
         {loading && <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">Cargando análisis...</div>}
       </main>
 
       {drawer && <ProductDrawer row={drawer.row} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
-      {dailyDetailOpen && data && <DailyDetailModal data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />}
       {historicalOpen && <HistoricalModal manualStart={manualStart} manualEnd={manualEnd} manualError={manualError} onStartChange={setManualStart} onEndChange={setManualEnd} onApply={applyManualRange} onClose={() => setHistoricalOpen(false)} />}
     </div>
   );
@@ -900,26 +906,46 @@ function DataSection({
   );
 }
 
-function DailyDetailModal({ data, scopeTitle, periodLabel, onClose }: { data: DashboardResponse; scopeTitle: string; periodLabel: string; onClose: () => void }) {
+function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: DashboardResponse; scopeTitle: string; periodLabel: string; onClose: () => void }) {
+  const [detailSearch, setDetailSearch] = useState('');
+  const [detailSearchFocused, setDetailSearchFocused] = useState(false);
   const rows = data.rows.filter((row) => row.salesXMonths > 0);
-  const soldProfit = rows.reduce((sum, row) => sum + row.totalProfit, 0);
-  const totalSalesMoney = rows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0);
-  const soldAverageMargin = rows.length > 0 ? rows.reduce((sum, row) => sum + row.marginPercent, 0) / rows.length : 0;
-  const soldUnits = rows.reduce((sum, row) => sum + row.salesXMonths, 0);
+  const searchTerm = detailSearch.trim();
+  const scoredRows = rows.map((row) => {
+    const score = Math.max(
+      scoreMatch(searchTerm, row.code),
+      scoreMatch(searchTerm, row.description),
+      scoreMatch(searchTerm, row.brand),
+      scoreMatch(searchTerm, row.line),
+      scoreMatch(searchTerm, row.category),
+      scoreMatch(searchTerm, row.type),
+      scoreMatch(searchTerm, row.provider)
+    );
+    return { row, score };
+  });
+  const visibleRows = searchTerm ? scoredRows.filter((item) => item.score > 0).sort((a, b) => b.score - a.score).map((item) => item.row) : rows;
+  const detailSuggestions = searchTerm.length >= 2 ? scoredRows
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map((item) => item.row) : [];
+  const soldProfit = visibleRows.reduce((sum, row) => sum + row.totalProfit, 0);
+  const totalSalesMoney = visibleRows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0);
+  const soldAverageMargin = visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0;
+  const soldUnits = visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 p-4 backdrop-blur-sm">
-      <div className="mx-auto flex h-full max-w-[1760px] flex-col overflow-hidden rounded-[1.5rem] bg-[#061a24] text-white shadow-2xl">
+    <section className="overflow-hidden rounded-[1.5rem] bg-[#061a24] text-white shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.25em] text-[#18b8b1]">Detalle ejecutivo diario</div>
+            <div className="text-xs font-black uppercase tracking-[0.25em] text-[#18b8b1]">Página detalle ejecutivo diario</div>
             <h2 className="text-xl font-black uppercase">{scopeTitle}</h2>
             <div className="text-sm font-bold text-cyan-100/60">Periodo: {periodLabel}</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => exportExcel(rows, 'detalle-ejecutivo-diario')} className="rounded-full bg-[#18b8b1] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
-            <button onClick={() => exportPdf(rows, 'Detalle Ejecutivo Diario')} className="rounded-full bg-[#ffbe1b] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
-            <button onClick={onClose} className="rounded-full bg-white px-5 py-2 font-black text-[#061a24]">Cerrar</button>
+            <button onClick={() => exportExcel(visibleRows, 'detalle-ejecutivo-diario')} className="rounded-full bg-[#18b8b1] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
+            <button onClick={() => exportPdf(visibleRows, 'Detalle Ejecutivo Diario')} className="rounded-full bg-[#ffbe1b] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
+            <button onClick={onClose} className="rounded-full bg-white px-5 py-2 font-black text-[#061a24]">Volver al dashboard</button>
           </div>
         </div>
 
@@ -946,7 +972,38 @@ function DailyDetailModal({ data, scopeTitle, periodLabel, onClose }: { data: Da
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto px-4 pb-4 scrollbar-thin">
+        <div className="border-y border-white/10 px-4 py-3">
+          <div className="relative">
+            <input
+              value={detailSearch}
+              onChange={(event) => setDetailSearch(event.target.value)}
+              onFocus={() => setDetailSearchFocused(true)}
+              onBlur={() => window.setTimeout(() => setDetailSearchFocused(false), 180)}
+              placeholder="Buscar tipo Google: código, producto, marca, línea, categoría, tipo o proveedor"
+              className="w-full rounded-2xl border border-cyan-100/15 bg-[#092935] px-4 py-3 text-sm font-bold text-white outline-none ring-[#18b8b1]/20 transition placeholder:text-cyan-100/35 focus:border-[#18b8b1] focus:ring-4"
+            />
+            {detailSearch && (
+              <button onClick={() => setDetailSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/10 px-3 py-1 text-xs font-black text-cyan-100/75 hover:bg-white/10">
+                Limpiar
+              </button>
+            )}
+            {detailSearchFocused && detailSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-cyan-100/15 bg-[#061a24] shadow-2xl">
+                {detailSuggestions.map((row) => (
+                  <button key={row.id} onClick={() => setDetailSearch(`${row.code} ${row.description}`)} className="flex w-full items-center justify-between gap-4 border-b border-white/5 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-white/10">
+                    <span className="min-w-0 truncate font-black text-white">{row.code} - {row.description}</span>
+                    <span className="shrink-0 rounded-full bg-[#18b8b1] px-3 py-1 text-xs font-black text-[#061a24]">{row.salesXMonths} und.</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-2 text-xs font-bold text-cyan-100/60">
+            Mostrando {visibleRows.length.toLocaleString('es-EC')} de {rows.length.toLocaleString('es-EC')} productos vendidos.
+          </div>
+        </div>
+
+        <div className="overflow-auto px-4 pb-4 pt-3 scrollbar-thin">
           <table className="min-w-[1760px] w-full border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-10 bg-[#061a24]">
               <tr>
@@ -956,7 +1013,7 @@ function DailyDetailModal({ data, scopeTitle, periodLabel, onClose }: { data: Da
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.id} className="bg-white/5 transition hover:bg-white/10">
                   <td className="rounded-l-xl px-2.5 py-2">
                     <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-10 w-10 rounded-lg object-cover" />
@@ -980,11 +1037,15 @@ function DailyDetailModal({ data, scopeTitle, periodLabel, onClose }: { data: Da
                   <td className="rounded-r-xl px-2.5 py-2 font-black">{percent(row.marginPercent)}</td>
                 </tr>
               ))}
+              {visibleRows.length === 0 && (
+                <tr>
+                  <td colSpan={18} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
+    </section>
   );
 }
 
