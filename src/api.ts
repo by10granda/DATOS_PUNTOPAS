@@ -33,8 +33,13 @@ export async function fetchDashboard(params: {
   if (params.dateEnd) query.set('dateEnd', params.dateEnd);
   const response = await fetch(apiUrl(`/api/dashboard?${query.toString()}`));
   if (!response.ok) {
-    const error = await response.json().catch(() => null) as { message?: string } | null;
-    throw new Error(error?.message ?? 'No se pudo cargar el dashboard');
+    const body = await response.text();
+    try {
+      const error = JSON.parse(body) as { message?: string };
+      throw new Error(error?.message ? `${error.message} (HTTP ${response.status})` : `No se pudo cargar el dashboard (HTTP ${response.status})`);
+    } catch {
+      throw new Error(`No se pudo cargar el dashboard (HTTP ${response.status}): ${body.slice(0, 180)}`);
+    }
   }
   return response.json();
 }

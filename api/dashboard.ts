@@ -3,6 +3,8 @@ import { buildDashboard } from '../server/analytics';
 import { loadSiapeProducts } from '../server/siape';
 import type { Branch, PeriodMonths } from '../server/types';
 
+export const maxDuration = 60;
+
 const branches: Branch[] = [{ name: 'ALMACEN PAS' }];
 const maxRangeMonths = 3;
 
