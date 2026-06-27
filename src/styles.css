@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.premium-shell {
+  background:
+    radial-gradient(circle at top left, rgba(24, 184, 177, 0.16), transparent 32rem),
+    radial-gradient(circle at top right, rgba(37, 255, 0, 0.10), transparent 28rem),
+    linear-gradient(135deg, #020617 0%, #061a24 52%, #073943 100%);
+}
+
+.dark .premium-shell {
+  background:
+    radial-gradient(circle at top left, rgba(24, 184, 177, 0.18), transparent 34rem),
+    radial-gradient(circle at top right, rgba(37, 255, 0, 0.12), transparent 30rem),
+    linear-gradient(135deg, #020617 0%, #061a24 55%, #073943 100%);
+}
+
+.premium-card {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.dark .premium-card {
+  border-color: rgba(51, 65, 85, 0.72);
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+.executive-header {
+  background:
+    radial-gradient(circle at top left, rgba(24, 184, 177, 0.32), transparent 28rem),
+    linear-gradient(120deg, #061a24 0%, #073943 48%, #061a24 100%),
+    #061a24;
+}
+
+.section-title::before {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.55rem;
+  border-radius: 999px;
+  background: #25ff00;
+  box-shadow: 0 0 0 5px rgba(37, 255, 0, 0.16);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(16, 45, 132, 0.35);
+  border-radius: 999px;
+}
