@@ -9,7 +9,10 @@ const textValue = (value, fallback = '') => typeof value === 'string' && value.t
 const normalizeText = (value) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
 export const buildUrl = (baseUrl, path) => {
-  const cleanBase = baseUrl.replace(/\/$/, '');
+  const normalizedBaseUrl = baseUrl.replace(/^\/+/, '').match(/^https?:\/\//)
+    ? baseUrl.replace(/^\/+/, '')
+    : `https://${baseUrl.replace(/^\/+/, '')}`;
+  const cleanBase = normalizedBaseUrl.replace(/\/$/, '');
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) return `${cleanBase}${cleanPath.slice(4)}`;
   return `${cleanBase}${cleanPath}`;
