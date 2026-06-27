@@ -1,7 +1,7 @@
 {
   "functions": {
-    "api/dashboard.ts": { "maxDuration": 60 },
-    "api/debug-siape.ts": { "maxDuration": 60 }
+    "api/dashboard.js": { "maxDuration": 60 },
+    "api/debug-siape.js": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
