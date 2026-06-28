@@ -4,6 +4,8 @@ export const normalizeText = (value: string) => value.toLowerCase().normalize('N
 
 const excludedProductCodes = new Set(['00002018', '00002019']);
 
+const dedupeProductsByCode = (products: ProductRecord[]) => Array.from(new Map(products.map((product) => [product.code, product])).values());
+
 export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): ProductRow => {
   const selectedSales = product.monthlySales;
   const salesXMonths = selectedSales.reduce((sum, item) => sum + item.quantity, 0);
@@ -77,7 +79,7 @@ export const buildDashboard = (
 ): DashboardResponse => {
   const searchTerm = normalizeText(params.search);
   const selectedBranch = params.branch;
-  const productsForDashboard = products.filter((product) => !excludedProductCodes.has(product.code));
+  const productsForDashboard = dedupeProductsByCode(products).filter((product) => !excludedProductCodes.has(product.code));
 
   const facetProducts = productsForDashboard.filter((product) => {
     const branchMatch = !selectedBranch || product.branch === selectedBranch;

@@ -130,6 +130,26 @@ const saleDuplicateKey = (sale: SiapeSaleItem) => [
   numberValue(sale.precio_venta).toFixed(4)
 ].join('|');
 
+const dedupeInventoryByCode = (inventory: SiapeInventoryItem[]) => {
+  const byCode = new Map<string, SiapeInventoryItem>();
+  for (const item of inventory) {
+    const existing = byCode.get(item.codigo);
+    if (!existing) {
+      byCode.set(item.codigo, item);
+      continue;
+    }
+
+    byCode.set(item.codigo, {
+      ...existing,
+      ...item,
+      niveles_precio: item.niveles_precio?.length ? item.niveles_precio : existing.niveles_precio,
+      proveedores: item.proveedores?.length ? item.proveedores : existing.proveedores,
+      disponibilidad: Math.max(numberValue(existing.disponibilidad), numberValue(item.disponibilidad))
+    });
+  }
+  return Array.from(byCode.values());
+};
+
 const fetchSales = async (baseUrl: string, token: string, dateStart: string, dateEnd: string) => {
   const pageSize = Number(process.env.SIAPE_PAGE_SIZE ?? 5000);
   const rows: SiapeSaleItem[] = [];
@@ -207,7 +227,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
 
   const months = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
 
-  return inventory.map((item) => {
+  return dedupeInventoryByCode(inventory).map((item) => {
     const provider = item.proveedores?.[0];
     const catalogItem = catalogByProduct.get(item.codigo);
     const puntoPas = item.niveles_precio?.find((level) => textValue(level.nivel).toUpperCase().includes('PUNTO PAS'));

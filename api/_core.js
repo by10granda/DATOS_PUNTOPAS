@@ -66,6 +66,26 @@ const saleDuplicateKey = (sale) => [
   numberValue(sale.precio_venta).toFixed(4)
 ].join('|');
 
+const dedupeInventoryByCode = (inventory) => {
+  const byCode = new Map();
+  for (const item of inventory) {
+    const existing = byCode.get(item.codigo);
+    if (!existing) {
+      byCode.set(item.codigo, item);
+      continue;
+    }
+
+    byCode.set(item.codigo, {
+      ...existing,
+      ...item,
+      niveles_precio: item.niveles_precio?.length ? item.niveles_precio : existing.niveles_precio,
+      proveedores: item.proveedores?.length ? item.proveedores : existing.proveedores,
+      disponibilidad: Math.max(numberValue(existing.disponibilidad), numberValue(item.disponibilidad))
+    });
+  }
+  return Array.from(byCode.values());
+};
+
 const fetchSales = async (baseUrl, token, dateStart, dateEnd) => {
   const pageSize = Number(process.env.SIAPE_PAGE_SIZE ?? 5000);
   const rows = [];
@@ -140,7 +160,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
 
   const hours = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
 
-  return inventory.map((item) => {
+  return dedupeInventoryByCode(inventory).map((item) => {
     const provider = item.proveedores?.[0];
     const catalogItem = catalogByProduct.get(item.codigo);
     const puntoPas = item.niveles_precio?.find((level) => textValue(level.nivel).toUpperCase().includes('PUNTO PAS'));
@@ -197,7 +217,7 @@ const buildRow = (product) => {
 
 export const buildDashboard = (products, params) => {
   const searchTerm = normalizeText(params.search);
-  const available = products.filter((product) => !excludedProductCodes.has(product.code));
+  const available = Array.from(new Map(products.map((product) => [product.code, product])).values()).filter((product) => !excludedProductCodes.has(product.code));
   const facetProducts = available.filter((product) => {
     const branchMatch = !params.branch || product.branch === params.branch;
     const searchMatch = !searchTerm || [product.code, product.description, product.brand, product.line, product.category, product.type, product.provider].some((field) => normalizeText(field).includes(searchTerm));
