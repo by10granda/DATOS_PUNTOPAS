@@ -144,6 +144,8 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
   ]);
 
   const salesByProduct = new Map();
+  const revenueByProduct = new Map();
+  const profitByProduct = new Map();
   const costByProduct = new Map();
   const priceByProduct = new Map();
   const catalogByProduct = new Map(catalog.map((item) => [item.codigo, item]));
@@ -152,8 +154,13 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
     const code = sale.codigo;
     const hour = dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('HH:00') : '00:00';
     const productSales = salesByProduct.get(code) ?? new Map();
-    productSales.set(hour, (productSales.get(hour) ?? 0) + numberValue(sale.cantidad_vendida));
+    const quantity = numberValue(sale.cantidad_vendida);
+    const saleCostWithIva = numberValue(sale.precio_costo) * 1.15;
+    const salePriceWithIva = numberValue(sale.precio_venta) * 1.15;
+    productSales.set(hour, (productSales.get(hour) ?? 0) + quantity);
     salesByProduct.set(code, productSales);
+    revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
+    profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
     costByProduct.set(code, numberValue(sale.precio_costo));
     priceByProduct.set(code, numberValue(sale.precio_venta));
   }
@@ -192,7 +199,9 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
       stock: Math.max(0, numberValue(item.disponibilidad)),
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
-      monthlySales: hours.map((hour) => ({ month: hour, quantity: productSales.get(hour) ?? 0 }))
+      monthlySales: hours.map((hour) => ({ month: hour, quantity: productSales.get(hour) ?? 0 })),
+      salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
+      salesProfitWithIva: profitByProduct.get(item.codigo) ?? 0
     };
   });
 };
@@ -204,9 +213,11 @@ const buildRow = (product) => {
   const costWithIva = product.costWithIva || product.cost;
   const publicCost = product.price;
   const publicCostWithIva = product.priceWithIva ?? publicCost * 1.15;
-  const unitProfit = publicCostWithIva - costWithIva;
-  const marginPercent = publicCostWithIva > 0 ? (unitProfit / publicCostWithIva) * 100 : 0;
-  const totalProfit = unitProfit * salesXMonths;
+  const catalogUnitProfit = publicCostWithIva - costWithIva;
+  const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
+  const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;
+  const marginBase = product.salesRevenueWithIva && product.salesRevenueWithIva > 0 ? product.salesRevenueWithIva : publicCostWithIva;
+  const marginPercent = marginBase > 0 ? ((product.salesProfitWithIva ?? catalogUnitProfit) / marginBase) * 100 : 0;
   const estimatedDaysInventory = averageMonthlySales > 0 ? Math.round((product.stock / averageMonthlySales) * 30) : 999;
   const inventoryState = salesXMonths === 0 ? 'Sin ventas' : rotation > 1.25 ? 'Alta rotacion' : product.stock > averageMonthlySales * 3 ? 'Sobrestock' : 'Normal';
   const inventorySignal = product.stock > averageMonthlySales * 3 ? 'Sobrestock' : salesXMonths === 0 ? 'Atención' : rotation > 1 ? 'Normal' : 'Atención';

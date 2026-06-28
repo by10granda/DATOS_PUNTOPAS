@@ -211,6 +211,8 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
   ]);
 
   const salesByProduct = new Map<string, Map<string, number>>();
+  const revenueByProduct = new Map<string, number>();
+  const profitByProduct = new Map<string, number>();
   const costByProduct = new Map<string, number>();
   const priceByProduct = new Map<string, number>();
   const catalogByProduct = new Map(catalog.map((item) => [item.codigo, item]));
@@ -219,8 +221,13 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
     const code = sale.codigo;
     const month = dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('HH:00') : '00:00';
     const productSales = salesByProduct.get(code) ?? new Map<string, number>();
-    productSales.set(month, (productSales.get(month) ?? 0) + numberValue(sale.cantidad_vendida));
+    const quantity = numberValue(sale.cantidad_vendida);
+    const saleCostWithIva = numberValue(sale.precio_costo) * 1.15;
+    const salePriceWithIva = numberValue(sale.precio_venta) * 1.15;
+    productSales.set(month, (productSales.get(month) ?? 0) + quantity);
     salesByProduct.set(code, productSales);
+    revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
+    profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
     costByProduct.set(code, numberValue(sale.precio_costo));
     priceByProduct.set(code, numberValue(sale.precio_venta));
   }
@@ -259,7 +266,9 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
       stock: Math.max(0, numberValue(item.disponibilidad)),
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
-      monthlySales: months.map((month) => ({ month, quantity: productSales.get(month) ?? 0 }))
+      monthlySales: months.map((month) => ({ month, quantity: productSales.get(month) ?? 0 })),
+      salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
+      salesProfitWithIva: profitByProduct.get(item.codigo) ?? 0
     };
   });
 };

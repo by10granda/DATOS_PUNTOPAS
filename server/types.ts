@@ -29,6 +29,8 @@ export type ProductRecord = {
   lastPurchase: string;
   lastPurchaseQuantity: number;
   monthlySales: MonthlySale[];
+  salesRevenueWithIva?: number;
+  salesProfitWithIva?: number;
 };
 
 export type ProductRow = {
