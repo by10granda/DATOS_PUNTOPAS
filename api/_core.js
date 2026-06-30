@@ -66,6 +66,40 @@ const saleDuplicateKey = (sale) => [
   numberValue(sale.precio_venta).toFixed(4)
 ].join('|');
 
+const saleDocumentSignature = (sales) => sales
+  .filter((sale) => !excludedProductCodes.has(sale.codigo))
+  .map((sale) => saleDuplicateKey(sale))
+  .sort((a, b) => a.localeCompare(b))
+  .join('||');
+
+const dedupeEquivalentSaleDocuments = (rows) => {
+  const duplicateDocumentWindowSeconds = Number(process.env.SIAPE_DUPLICATE_DOCUMENT_WINDOW_SECONDS ?? 1800);
+  const documentsByTimestamp = new Map();
+
+  for (const row of rows) {
+    const timestamp = dayjs(row.fecha_venta).isValid() ? dayjs(row.fecha_venta).format('YYYY-MM-DDTHH:mm:ss') : 'SIN_FECHA';
+    const documentRows = documentsByTimestamp.get(timestamp) ?? [];
+    documentRows.push(row);
+    documentsByTimestamp.set(timestamp, documentRows);
+  }
+
+  const acceptedDocuments = new Map();
+  const dedupedRows = [];
+
+  for (const [timestamp, documentRows] of Array.from(documentsByTimestamp.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+    const saleDate = dayjs(timestamp);
+    const signature = saleDocumentSignature(documentRows);
+    if (!signature) continue;
+    const lastAcceptedDate = acceptedDocuments.get(signature);
+
+    if (lastAcceptedDate && saleDate.isValid() && Math.abs(saleDate.diff(lastAcceptedDate, 'second')) <= duplicateDocumentWindowSeconds) continue;
+    if (saleDate.isValid()) acceptedDocuments.set(signature, saleDate);
+    dedupedRows.push(...documentRows);
+  }
+
+  return dedupedRows;
+};
+
 const dedupeInventoryByCode = (inventory) => {
   const byCode = new Map();
   for (const item of inventory) {
@@ -107,7 +141,7 @@ const fetchSales = async (baseUrl, token, dateStart, dateEnd) => {
   const duplicateWindowSeconds = Number(process.env.SIAPE_DUPLICATE_WINDOW_SECONDS ?? 300);
   const lastAcceptedBySaleKey = new Map();
 
-  return rows.sort((a, b) => dayjs(a.fecha_venta).valueOf() - dayjs(b.fecha_venta).valueOf()).filter((sale) => {
+  return dedupeEquivalentSaleDocuments(rows).sort((a, b) => dayjs(a.fecha_venta).valueOf() - dayjs(b.fecha_venta).valueOf()).filter((sale) => {
     const saleDate = dayjs(sale.fecha_venta);
     if (!saleDate.isValid() || saleDate.isBefore(start) || saleDate.isAfter(end)) return false;
     const saleKey = saleDuplicateKey(sale);

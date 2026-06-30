@@ -130,6 +130,45 @@ const saleDuplicateKey = (sale: SiapeSaleItem) => [
   numberValue(sale.precio_venta).toFixed(4)
 ].join('|');
 
+const excludedSaleCodes = new Set(['00002018', '00002019']);
+
+const saleDocumentSignature = (sales: SiapeSaleItem[]) => sales
+  .filter((sale) => !excludedSaleCodes.has(sale.codigo))
+  .map((sale) => saleDuplicateKey(sale))
+  .sort((a, b) => a.localeCompare(b))
+  .join('||');
+
+const dedupeEquivalentSaleDocuments = (rows: SiapeSaleItem[]) => {
+  const duplicateDocumentWindowSeconds = Number(process.env.SIAPE_DUPLICATE_DOCUMENT_WINDOW_SECONDS ?? 1800);
+  const documentsByTimestamp = new Map<string, SiapeSaleItem[]>();
+
+  for (const row of rows) {
+    const timestamp = dayjs(row.fecha_venta).isValid() ? dayjs(row.fecha_venta).format('YYYY-MM-DDTHH:mm:ss') : 'SIN_FECHA';
+    const documentRows = documentsByTimestamp.get(timestamp) ?? [];
+    documentRows.push(row);
+    documentsByTimestamp.set(timestamp, documentRows);
+  }
+
+  const acceptedDocuments = new Map<string, dayjs.Dayjs>();
+  const dedupedRows: SiapeSaleItem[] = [];
+
+  for (const [timestamp, documentRows] of Array.from(documentsByTimestamp.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+    const saleDate = dayjs(timestamp);
+    const signature = saleDocumentSignature(documentRows);
+    if (!signature) continue;
+    const lastAcceptedDate = acceptedDocuments.get(signature);
+
+    if (lastAcceptedDate && saleDate.isValid() && Math.abs(saleDate.diff(lastAcceptedDate, 'second')) <= duplicateDocumentWindowSeconds) {
+      continue;
+    }
+
+    if (saleDate.isValid()) acceptedDocuments.set(signature, saleDate);
+    dedupedRows.push(...documentRows);
+  }
+
+  return dedupedRows;
+};
+
 const dedupeInventoryByCode = (inventory: SiapeInventoryItem[]) => {
   const byCode = new Map<string, SiapeInventoryItem>();
   for (const item of inventory) {
@@ -181,7 +220,7 @@ const fetchSales = async (baseUrl: string, token: string, dateStart: string, dat
   const duplicateWindowSeconds = Number(process.env.SIAPE_DUPLICATE_WINDOW_SECONDS ?? 300);
   const lastAcceptedBySaleKey = new Map<string, dayjs.Dayjs>();
 
-  return rows.sort((a, b) => dayjs(a.fecha_venta).valueOf() - dayjs(b.fecha_venta).valueOf()).filter((sale) => {
+  return dedupeEquivalentSaleDocuments(rows).sort((a, b) => dayjs(a.fecha_venta).valueOf() - dayjs(b.fecha_venta).valueOf()).filter((sale) => {
     const saleDate = dayjs(sale.fecha_venta);
     if (!saleDate.isValid() || saleDate.isBefore(start) || saleDate.isAfter(end)) {
       return false;
