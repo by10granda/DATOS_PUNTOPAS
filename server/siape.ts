@@ -130,10 +130,7 @@ const saleDuplicateKey = (sale: SiapeSaleItem) => [
   numberValue(sale.precio_venta).toFixed(4)
 ].join('|');
 
-const excludedSaleCodes = new Set(['00002018', '00002019']);
-
 const saleDocumentSignature = (sales: SiapeSaleItem[]) => sales
-  .filter((sale) => !excludedSaleCodes.has(sale.codigo))
   .map((sale) => saleDuplicateKey(sale))
   .sort((a, b) => a.localeCompare(b))
   .join('||');
@@ -155,7 +152,6 @@ const dedupeEquivalentSaleDocuments = (rows: SiapeSaleItem[]) => {
   for (const [timestamp, documentRows] of Array.from(documentsByTimestamp.entries()).sort(([a], [b]) => a.localeCompare(b))) {
     const saleDate = dayjs(timestamp);
     const signature = saleDocumentSignature(documentRows);
-    if (!signature) continue;
     const lastAcceptedDate = acceptedDocuments.get(signature);
 
     if (lastAcceptedDate && saleDate.isValid() && Math.abs(saleDate.diff(lastAcceptedDate, 'second')) <= duplicateDocumentWindowSeconds) {

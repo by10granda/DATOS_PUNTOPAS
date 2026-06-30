@@ -2,8 +2,6 @@ import type { DashboardResponse, PeriodMonths, ProductRecord, ProductRow } from 
 
 export const normalizeText = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
-const excludedProductCodes = new Set(['00002018', '00002019']);
-
 const dedupeProductsByCode = (products: ProductRecord[]) => Array.from(new Map(products.map((product) => [product.code, product])).values());
 
 export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): ProductRow => {
@@ -81,7 +79,7 @@ export const buildDashboard = (
 ): DashboardResponse => {
   const searchTerm = normalizeText(params.search);
   const selectedBranch = params.branch;
-  const productsForDashboard = dedupeProductsByCode(products).filter((product) => !excludedProductCodes.has(product.code));
+  const productsForDashboard = dedupeProductsByCode(products);
 
   const facetProducts = productsForDashboard.filter((product) => {
     const branchMatch = !selectedBranch || product.branch === selectedBranch;

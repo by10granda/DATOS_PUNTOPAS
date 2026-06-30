@@ -2,8 +2,6 @@ import dayjs from 'dayjs';
 
 export const branches = [{ name: 'ALMACEN PAS' }];
 
-const excludedProductCodes = new Set(['00002018', '00002019']);
-
 const numberValue = (value) => Number(value ?? 0) || 0;
 const textValue = (value, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
 const normalizeText = (value) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -67,7 +65,6 @@ const saleDuplicateKey = (sale) => [
 ].join('|');
 
 const saleDocumentSignature = (sales) => sales
-  .filter((sale) => !excludedProductCodes.has(sale.codigo))
   .map((sale) => saleDuplicateKey(sale))
   .sort((a, b) => a.localeCompare(b))
   .join('||');
@@ -89,7 +86,6 @@ const dedupeEquivalentSaleDocuments = (rows) => {
   for (const [timestamp, documentRows] of Array.from(documentsByTimestamp.entries()).sort(([a], [b]) => a.localeCompare(b))) {
     const saleDate = dayjs(timestamp);
     const signature = saleDocumentSignature(documentRows);
-    if (!signature) continue;
     const lastAcceptedDate = acceptedDocuments.get(signature);
 
     if (lastAcceptedDate && saleDate.isValid() && Math.abs(saleDate.diff(lastAcceptedDate, 'second')) <= duplicateDocumentWindowSeconds) continue;
@@ -262,7 +258,7 @@ const buildRow = (product) => {
 
 export const buildDashboard = (products, params) => {
   const searchTerm = normalizeText(params.search);
-  const available = Array.from(new Map(products.map((product) => [product.code, product])).values()).filter((product) => !excludedProductCodes.has(product.code));
+  const available = Array.from(new Map(products.map((product) => [product.code, product])).values());
   const facetProducts = available.filter((product) => {
     const branchMatch = !params.branch || product.branch === params.branch;
     const searchMatch = !searchTerm || [product.code, product.description, product.brand, product.line, product.category, product.type, product.provider].some((field) => normalizeText(field).includes(searchTerm));
