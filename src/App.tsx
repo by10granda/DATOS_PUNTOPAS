@@ -934,7 +934,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
     .slice(0, 8)
     .map((item) => item.row) : [];
   const soldProfit = visibleRows.reduce((sum, row) => sum + row.totalProfit, 0);
-  const totalSalesMoney = visibleRows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0);
+  const totalSalesMoney = visibleRows.reduce((sum, row) => sum + row.publicCostWithIva, 0);
   const soldAverageMargin = visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0;
   const soldUnits = visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0);
 
