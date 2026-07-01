@@ -43,7 +43,6 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
     costWithIva,
     publicCost,
     salePrice,
-    advancesTotal: product.advancesTotal ?? 0,
     publicCostWithIva,
     marginPercent,
     provider: product.provider,
@@ -115,7 +114,6 @@ export const buildDashboard = (
   const totalUnitsSold = rows.reduce((sum, row) => sum + row.salesXMonths, 0);
   const totalStock = rows.reduce((sum, row) => sum + row.stock, 0);
   const totalProfit = rows.reduce((sum, row) => sum + row.totalProfit, 0);
-  const totalAdvances = rows.reduce((sum, row) => sum + row.advancesTotal, 0);
   const averageGeneralSales = rows.length ? rows.reduce((acc, row) => acc + row.salesXMonths, 0) / rows.length : 0;
   const highRotation = rows.filter((row) => row.salesXMonths > averageGeneralSales).length;
   const noSales = rows.filter((row) => row.salesXMonths === 0).length;
@@ -167,7 +165,6 @@ export const buildDashboard = (
       totalUnitsSold,
       totalStock,
       totalProfit,
-      totalAdvances,
       highRotation,
       noSales,
       overstock,

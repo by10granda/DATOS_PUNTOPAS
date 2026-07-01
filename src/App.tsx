@@ -363,11 +363,10 @@ function App() {
                   <div className="text-xs font-black uppercase tracking-[0.2em] text-corporateGreen">Datos filtrados actualmente</div>
                   <div className="mt-1 text-sm font-bold text-white">{dataScopeTitle} | {activePeriodLabel}</div>
                 </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <StatCard label="Total Productos" value={data?.kpis.totalProducts ?? 0} />
                   <StatCard label="Unidades Vendidas" value={data?.kpis.totalUnitsSold ?? 0} accent="green" />
                   <StatCard label="Ganancias Totales" value={money(data?.kpis.totalProfit ?? 0)} accent="blue" />
-                  <StatCard label="Total Anticipos" value={money(data?.kpis.totalAdvances ?? 0)} accent="green" />
                   <StatCard label="Margen Promedio" value={percent(data?.kpis.averageMargin ?? 0)} accent="blue" />
                 </div>
               </div>
@@ -936,7 +935,6 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
     .map((item) => item.row) : [];
   const soldProfit = visibleRows.reduce((sum, row) => sum + row.totalProfit, 0);
   const totalSalesMoney = visibleRows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0);
-  const totalAdvances = visibleRows.reduce((sum, row) => sum + row.advancesTotal, 0);
   const soldAverageMargin = visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0;
   const soldUnits = visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0);
 
@@ -969,9 +967,8 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </ResponsiveContainer>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <DarkMetric label="Total Ventas" value={money(totalSalesMoney)} />
-            <DarkMetric label="Total Anticipos" value={money(totalAdvances)} />
             <DarkMetric label="Ganancia día" value={money(soldProfit)} />
             <DarkMetric label="Media margen" value={percent(soldAverageMargin)} />
             <DarkMetric label="Productos vendidos" value={rows.length.toLocaleString('es-EC')} />

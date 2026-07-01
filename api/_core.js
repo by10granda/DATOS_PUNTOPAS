@@ -5,15 +5,6 @@ export const branches = [{ name: 'ALMACEN PAS' }];
 const numberValue = (value) => Number(value ?? 0) || 0;
 const textValue = (value, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
 const normalizeText = (value) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-const saleAdvanceValue = (sale) => Math.max(
-  0,
-  numberValue(sale.anticipo),
-  numberValue(sale.anticipos),
-  numberValue(sale.anticipo_utilizado),
-  numberValue(sale.anticipos_utilizados),
-  numberValue(sale.valor_anticipo),
-  numberValue(sale.valor_anticipos)
-);
 
 export const buildUrl = (baseUrl, path) => {
   const normalizedBaseUrl = baseUrl.replace(/^\/+/, '').match(/^https?:\/\//)
@@ -139,7 +130,6 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
   const salesByProduct = new Map();
   const revenueByProduct = new Map();
   const profitByProduct = new Map();
-  const advancesByProduct = new Map();
   const saleDateByProduct = new Map();
   const costByProduct = new Map();
   const priceByProduct = new Map();
@@ -156,7 +146,6 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
     salesByProduct.set(code, productSales);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
     profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
-    advancesByProduct.set(code, (advancesByProduct.get(code) ?? 0) + saleAdvanceValue(sale));
     const currentSaleDate = saleDateByProduct.get(code);
     if (!currentSaleDate || dayjs(sale.fecha_venta).isAfter(dayjs(currentSaleDate))) {
       saleDateByProduct.set(code, dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('YYYY-MM-DD HH:mm:ss') : '');
@@ -195,7 +184,6 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
       price,
       priceWithIva: publicPriceWithIva,
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
-      advancesTotal: advancesByProduct.get(item.codigo) ?? 0,
       pricePuntoPas: numberValue(puntoPas?.precio ?? priceLevel?.precio),
       pricePvp: pvp ? numberValue(pvp.precio) : null,
       stock: Math.max(0, numberValue(item.disponibilidad)),
@@ -227,7 +215,7 @@ const buildRow = (product) => {
   const inventorySignal = product.stock > averageMonthlySales * 3 ? 'Sobrestock' : salesXMonths === 0 ? 'Atención' : rotation > 1 ? 'Normal' : 'Atención';
   const recommendation = salesXMonths === 0 ? 'Se recomienda detener compras y revisar portafolio.' : product.stock > averageMonthlySales * 3 ? `Este producto tiene sobrestock para aproximadamente ${Math.max(1, Math.round(estimatedDaysInventory / 30))} meses.` : estimatedDaysInventory <= 30 ? `Este producto tiene alta rotacion y se agotara en ${Math.max(1, estimatedDaysInventory)} dias.` : 'Se recomienda mantener el nivel actual de inventario.';
 
-  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, saleDate: product.saleDate, costProvider: product.cost, costWithIva, publicCost, salePrice, advancesTotal: product.advancesTotal ?? 0, publicCostWithIva, marginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory };
+  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, saleDate: product.saleDate, costProvider: product.cost, costWithIva, publicCost, salePrice, publicCostWithIva, marginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory };
 };
 
 export const buildDashboard = (products, params) => {
@@ -253,7 +241,6 @@ export const buildDashboard = (products, params) => {
   const totalUnitsSold = rows.reduce((sum, row) => sum + row.salesXMonths, 0);
   const totalStock = rows.reduce((sum, row) => sum + row.stock, 0);
   const totalProfit = rows.reduce((sum, row) => sum + row.totalProfit, 0);
-  const totalAdvances = rows.reduce((sum, row) => sum + row.advancesTotal, 0);
   const averageGeneralSales = rows.length ? rows.reduce((acc, row) => acc + row.salesXMonths, 0) / rows.length : 0;
   const averageMargin = rows.length ? rows.reduce((sum, row) => sum + row.marginPercent, 0) / rows.length : 0;
   const donutSeries = monthLabels.map((month) => ({ name: month, value: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === month)?.quantity ?? 0), 0) })).filter((item) => item.value > 0);
@@ -273,7 +260,7 @@ export const buildDashboard = (products, params) => {
     availableLines: Array.from(new Set(facetProducts.map((row) => row.line))).sort((a, b) => a.localeCompare(b, 'es')),
     availableTypes: Array.from(new Set(facetProducts.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es')),
     availableProducts: facetProducts.map((row) => ({ code: row.code, description: row.description })).sort((a, b) => a.description.localeCompare(b.description, 'es')),
-    kpis: { totalProducts: rows.length, totalUnitsSold, totalStock, totalProfit, totalAdvances, highRotation: rows.filter((row) => row.salesXMonths > averageGeneralSales).length, noSales: rows.filter((row) => row.salesXMonths === 0).length, overstock: rows.filter((row) => row.stock > row.averageMonthlySales * 3).length, averageMargin },
+    kpis: { totalProducts: rows.length, totalUnitsSold, totalStock, totalProfit, highRotation: rows.filter((row) => row.salesXMonths > averageGeneralSales).length, noSales: rows.filter((row) => row.salesXMonths === 0).length, overstock: rows.filter((row) => row.stock > row.averageMonthlySales * 3).length, averageMargin },
     monthlySeries: totalsByMonth,
     donutSeries,
     barSeries: totalsByMonth.map((item) => ({ name: item.month, ventas: item.quantity })),

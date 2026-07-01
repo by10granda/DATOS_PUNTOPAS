@@ -27,12 +27,6 @@ type SiapeSaleItem = {
   precio_costo?: number | string;
   precio_venta?: number | string;
   fecha_venta?: string;
-  anticipo?: number | string;
-  anticipos?: number | string;
-  anticipo_utilizado?: number | string;
-  anticipos_utilizados?: number | string;
-  valor_anticipo?: number | string;
-  valor_anticipos?: number | string;
 };
 
 type SiapeCatalogItem = {
@@ -49,15 +43,6 @@ type SiapeCatalogItem = {
 
 const numberValue = (value: unknown) => Number(value ?? 0) || 0;
 const textValue = (value: unknown, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
-const saleAdvanceValue = (sale: SiapeSaleItem) => Math.max(
-  0,
-  numberValue(sale.anticipo),
-  numberValue(sale.anticipos),
-  numberValue(sale.anticipo_utilizado),
-  numberValue(sale.anticipos_utilizados),
-  numberValue(sale.valor_anticipo),
-  numberValue(sale.valor_anticipos)
-);
 
 const buildUrl = (baseUrl: string, path: string) => {
   const cleanBase = baseUrl.replace(/\/$/, '');
@@ -211,7 +196,6 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
   const salesByProduct = new Map<string, Map<string, number>>();
   const revenueByProduct = new Map<string, number>();
   const profitByProduct = new Map<string, number>();
-  const advancesByProduct = new Map<string, number>();
   const saleDateByProduct = new Map<string, string>();
   const costByProduct = new Map<string, number>();
   const priceByProduct = new Map<string, number>();
@@ -228,7 +212,6 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
     salesByProduct.set(code, productSales);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
     profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
-    advancesByProduct.set(code, (advancesByProduct.get(code) ?? 0) + saleAdvanceValue(sale));
     const currentSaleDate = saleDateByProduct.get(code);
     if (!currentSaleDate || dayjs(sale.fecha_venta).isAfter(dayjs(currentSaleDate))) {
       saleDateByProduct.set(code, dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('YYYY-MM-DD HH:mm:ss') : '');
@@ -267,7 +250,6 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
       price,
       priceWithIva: publicPriceWithIva,
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
-      advancesTotal: advancesByProduct.get(item.codigo) ?? 0,
       pricePuntoPas: numberValue(puntoPas?.precio ?? priceLevel?.precio),
       pricePvp: pvp ? numberValue(pvp.precio) : null,
       stock: Math.max(0, numberValue(item.disponibilidad)),

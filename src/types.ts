@@ -18,7 +18,6 @@ export type ProductRow = {
   costWithIva: number;
   publicCost: number;
   salePrice: number;
-  advancesTotal: number;
   publicCostWithIva: number;
   marginPercent: number;
   provider: string;
@@ -59,7 +58,6 @@ export type DashboardResponse = {
     totalUnitsSold: number;
     totalStock: number;
     totalProfit: number;
-    totalAdvances: number;
     highRotation: number;
     noSales: number;
     overstock: number;
