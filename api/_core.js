@@ -70,7 +70,6 @@ const saleDocumentSignature = (sales) => sales
   .join('||');
 
 const dedupeEquivalentSaleDocuments = (rows) => {
-  const duplicateDocumentWindowSeconds = Number(process.env.SIAPE_DUPLICATE_DOCUMENT_WINDOW_SECONDS ?? 1800);
   const documentsByTimestamp = new Map();
 
   for (const row of rows) {
@@ -80,16 +79,18 @@ const dedupeEquivalentSaleDocuments = (rows) => {
     documentsByTimestamp.set(timestamp, documentRows);
   }
 
-  const acceptedDocuments = new Map();
+  const acceptedDocumentsByDay = new Map();
   const dedupedRows = [];
 
   for (const [timestamp, documentRows] of Array.from(documentsByTimestamp.entries()).sort(([a], [b]) => a.localeCompare(b))) {
     const saleDate = dayjs(timestamp);
     const signature = saleDocumentSignature(documentRows);
-    const lastAcceptedDate = acceptedDocuments.get(signature);
+    const saleDay = saleDate.isValid() ? saleDate.format('YYYY-MM-DD') : 'SIN_FECHA';
+    const acceptedSignatures = acceptedDocumentsByDay.get(saleDay) ?? new Set();
 
-    if (lastAcceptedDate && saleDate.isValid() && Math.abs(saleDate.diff(lastAcceptedDate, 'second')) <= duplicateDocumentWindowSeconds) continue;
-    if (saleDate.isValid()) acceptedDocuments.set(signature, saleDate);
+    if (acceptedSignatures.has(signature)) continue;
+    acceptedSignatures.add(signature);
+    acceptedDocumentsByDay.set(saleDay, acceptedSignatures);
     dedupedRows.push(...documentRows);
   }
 
@@ -244,7 +245,7 @@ const buildRow = (product) => {
   const costWithIva = product.costWithIva || product.cost;
   const publicCost = product.price;
   const salePrice = salesXMonths > 0 && product.salesRevenueWithIva ? product.salesRevenueWithIva / salesXMonths / 1.15 : product.salePrice || 0;
-  const publicCostWithIva = product.priceWithIva ?? publicCost * 1.15;
+  const publicCostWithIva = costWithIva * 1.15;
   const catalogUnitProfit = publicCostWithIva - costWithIva;
   const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
   const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;

@@ -136,7 +136,6 @@ const saleDocumentSignature = (sales: SiapeSaleItem[]) => sales
   .join('||');
 
 const dedupeEquivalentSaleDocuments = (rows: SiapeSaleItem[]) => {
-  const duplicateDocumentWindowSeconds = Number(process.env.SIAPE_DUPLICATE_DOCUMENT_WINDOW_SECONDS ?? 1800);
   const documentsByTimestamp = new Map<string, SiapeSaleItem[]>();
 
   for (const row of rows) {
@@ -146,19 +145,21 @@ const dedupeEquivalentSaleDocuments = (rows: SiapeSaleItem[]) => {
     documentsByTimestamp.set(timestamp, documentRows);
   }
 
-  const acceptedDocuments = new Map<string, dayjs.Dayjs>();
+  const acceptedDocumentsByDay = new Map<string, Set<string>>();
   const dedupedRows: SiapeSaleItem[] = [];
 
   for (const [timestamp, documentRows] of Array.from(documentsByTimestamp.entries()).sort(([a], [b]) => a.localeCompare(b))) {
     const saleDate = dayjs(timestamp);
     const signature = saleDocumentSignature(documentRows);
-    const lastAcceptedDate = acceptedDocuments.get(signature);
+    const saleDay = saleDate.isValid() ? saleDate.format('YYYY-MM-DD') : 'SIN_FECHA';
+    const acceptedSignatures = acceptedDocumentsByDay.get(saleDay) ?? new Set<string>();
 
-    if (lastAcceptedDate && saleDate.isValid() && Math.abs(saleDate.diff(lastAcceptedDate, 'second')) <= duplicateDocumentWindowSeconds) {
+    if (acceptedSignatures.has(signature)) {
       continue;
     }
 
-    if (saleDate.isValid()) acceptedDocuments.set(signature, saleDate);
+    acceptedSignatures.add(signature);
+    acceptedDocumentsByDay.set(saleDay, acceptedSignatures);
     dedupedRows.push(...documentRows);
   }
 
