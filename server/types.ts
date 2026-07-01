@@ -28,6 +28,7 @@ export type ProductRecord = {
   pricePvp: number | null;
   stock: number;
   lastPurchase: string;
+  saleDate: string;
   lastPurchaseQuantity: number;
   monthlySales: MonthlySale[];
   salesRevenueWithIva?: number;
@@ -43,6 +44,7 @@ export type ProductRow = {
   unitProfit: number;
   totalProfit: number;
   lastPurchase: string;
+  saleDate: string;
   costProvider: number;
   costWithIva: number;
   publicCost: number;

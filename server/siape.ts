@@ -249,6 +249,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
   const salesByProduct = new Map<string, Map<string, number>>();
   const revenueByProduct = new Map<string, number>();
   const profitByProduct = new Map<string, number>();
+  const saleDateByProduct = new Map<string, string>();
   const costByProduct = new Map<string, number>();
   const priceByProduct = new Map<string, number>();
   const catalogByProduct = new Map(catalog.map((item) => [item.codigo, item]));
@@ -264,6 +265,10 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
     salesByProduct.set(code, productSales);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
     profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
+    const currentSaleDate = saleDateByProduct.get(code);
+    if (!currentSaleDate || dayjs(sale.fecha_venta).isAfter(dayjs(currentSaleDate))) {
+      saleDateByProduct.set(code, dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('YYYY-MM-DD HH:mm:ss') : '');
+    }
     costByProduct.set(code, numberValue(sale.precio_costo));
     priceByProduct.set(code, numberValue(sale.precio_venta));
   }
@@ -302,6 +307,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
       pricePvp: pvp ? numberValue(pvp.precio) : null,
       stock: Math.max(0, numberValue(item.disponibilidad)),
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
+      saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
       monthlySales: months.map((month) => ({ month, quantity: productSales.get(month) ?? 0 })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,

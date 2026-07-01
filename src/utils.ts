@@ -17,6 +17,7 @@ export const exportExcel = (rows: ProductRow[], fileName: string) => {
     Tipo: row.type,
     'Stock Actual': row.stock,
     'Cantidad Vendida': row.salesXMonths,
+    fecha_venta: row.saleDate || 'NO CONSTA',
     'Ganancia Unitaria': row.unitProfit,
     'Ganancia Total': row.totalProfit,
     'Última Compra': row.lastPurchase,
@@ -45,13 +46,14 @@ export const exportPdf = (rows: ProductRow[], title: string) => {
   autoTable(doc, {
     startY: 20,
     head: [[
-      'Código', 'Descripción', 'Stock', 'Cantidad Vendida', 'Ganancia Unitaria', 'Ganancia Total', 'Última Compra', 'Costo', 'Costo IVA', 'Precio', 'precio_venta', 'Precio IVA', 'Margen', 'Proveedor', 'Rotación', 'Estado'
+      'Código', 'Descripción', 'Stock', 'Cantidad Vendida', 'fecha_venta', 'Ganancia Unitaria', 'Ganancia Total', 'Última Compra', 'Costo', 'Costo IVA', 'Precio', 'precio_venta', 'Precio IVA', 'Margen', 'Proveedor', 'Rotación', 'Estado'
     ]],
     body: rows.map((row) => [
       row.code,
       row.description,
       row.stock,
       row.salesXMonths,
+      row.saleDate || 'NO CONSTA',
       row.unitProfit.toFixed(2),
       row.totalProfit.toFixed(2),
       row.lastPurchase,

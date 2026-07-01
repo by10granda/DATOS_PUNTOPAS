@@ -13,6 +13,7 @@ export type ProductRow = {
   unitProfit: number;
   totalProfit: number;
   lastPurchase: string;
+  saleDate: string;
   costProvider: number;
   costWithIva: number;
   publicCost: number;

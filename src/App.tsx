@@ -836,6 +836,7 @@ function DataSection({
     { key: 'description', label: 'Descripción' },
     { key: 'stock', label: 'Stock Actual' },
     { key: 'salesXMonths', label: 'Cantidad Vendida' },
+    { key: 'saleDate', label: 'fecha_venta' },
     { key: 'totalProfit', label: 'Ganancia Total' },
     { key: 'lastPurchase', label: 'Última Compra' },
     { key: 'costProvider', label: 'Costo Proveedor' },
@@ -877,6 +878,7 @@ function DataSection({
                 <td className="max-w-[240px] truncate px-2.5 py-2">{row.description}</td>
                 <td className="px-2.5 py-2">{row.stock}</td>
                 <td className="px-2.5 py-2">{row.salesXMonths}</td>
+                <td className="whitespace-nowrap px-2.5 py-2">{row.saleDate || 'NO CONSTA'}</td>
                 <td className="px-2.5 py-2 font-black text-emerald-700 dark:text-emerald-300">{money(row.totalProfit)}</td>
                 <td className="whitespace-nowrap px-2.5 py-2">{row.lastPurchase}</td>
                 <td className="px-2.5 py-2">{money(row.costProvider)}</td>
@@ -1009,7 +1011,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           <table className="min-w-[1760px] w-full border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-10 bg-[#061a24]">
               <tr>
-                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Fecha Última Compra', 'Cantidad Última Compra', 'Disponibilidad', 'Margen Ganancia %'].map((label) => (
+                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Fecha Última Compra', 'Cantidad Última Compra', 'Disponibilidad', 'Margen Ganancia %'].map((label) => (
                   <th key={label} className="whitespace-nowrap border-b border-white/10 px-2.5 py-2 text-left font-black uppercase tracking-wide text-cyan-100/70">{label}</th>
                 ))}
               </tr>
@@ -1027,6 +1029,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2">{row.category}</td>
                   <td className="px-2.5 py-2">{row.type}</td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.salesXMonths}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2">{row.saleDate || 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2 font-bold">{money(row.pricePuntoPas)}</td>
                   <td className="px-2.5 py-2 font-bold">{row.pricePvp === null ? 'NO CONSTA' : money(row.pricePvp)}</td>
                   <td className="px-2.5 py-2">{row.provider}</td>
@@ -1042,7 +1045,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={19} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
+                  <td colSpan={20} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
                 </tr>
               )}
             </tbody>
@@ -1084,6 +1087,7 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Detail label="Código" value={row.code} />
+          <Detail label="fecha_venta" value={row.saleDate || 'NO CONSTA'} />
           <Detail label="Marca" value={row.brand} />
           <Detail label="Categoría" value={row.category} />
           <Detail label="Proveedor" value={row.provider} />

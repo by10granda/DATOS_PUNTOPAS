@@ -38,6 +38,7 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
     unitProfit,
     totalProfit,
     lastPurchase: product.lastPurchase,
+    saleDate: product.saleDate,
     costProvider: product.cost,
     costWithIva,
     publicCost,

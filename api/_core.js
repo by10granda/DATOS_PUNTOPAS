@@ -177,6 +177,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
   const salesByProduct = new Map();
   const revenueByProduct = new Map();
   const profitByProduct = new Map();
+  const saleDateByProduct = new Map();
   const costByProduct = new Map();
   const priceByProduct = new Map();
   const catalogByProduct = new Map(catalog.map((item) => [item.codigo, item]));
@@ -192,6 +193,10 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
     salesByProduct.set(code, productSales);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
     profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
+    const currentSaleDate = saleDateByProduct.get(code);
+    if (!currentSaleDate || dayjs(sale.fecha_venta).isAfter(dayjs(currentSaleDate))) {
+      saleDateByProduct.set(code, dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('YYYY-MM-DD HH:mm:ss') : '');
+    }
     costByProduct.set(code, numberValue(sale.precio_costo));
     priceByProduct.set(code, numberValue(sale.precio_venta));
   }
@@ -230,6 +235,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd) => {
       pricePvp: pvp ? numberValue(pvp.precio) : null,
       stock: Math.max(0, numberValue(item.disponibilidad)),
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
+      saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
       monthlySales: hours.map((hour) => ({ month: hour, quantity: productSales.get(hour) ?? 0 })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
@@ -256,7 +262,7 @@ const buildRow = (product) => {
   const inventorySignal = product.stock > averageMonthlySales * 3 ? 'Sobrestock' : salesXMonths === 0 ? 'Atención' : rotation > 1 ? 'Normal' : 'Atención';
   const recommendation = salesXMonths === 0 ? 'Se recomienda detener compras y revisar portafolio.' : product.stock > averageMonthlySales * 3 ? `Este producto tiene sobrestock para aproximadamente ${Math.max(1, Math.round(estimatedDaysInventory / 30))} meses.` : estimatedDaysInventory <= 30 ? `Este producto tiene alta rotacion y se agotara en ${Math.max(1, estimatedDaysInventory)} dias.` : 'Se recomienda mantener el nivel actual de inventario.';
 
-  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, costProvider: product.cost, costWithIva, publicCost, salePrice, publicCostWithIva, marginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory };
+  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, saleDate: product.saleDate, costProvider: product.cost, costWithIva, publicCost, salePrice, publicCostWithIva, marginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory };
 };
 
 export const buildDashboard = (products, params) => {
