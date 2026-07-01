@@ -16,6 +16,7 @@ export type ProductRow = {
   costProvider: number;
   costWithIva: number;
   publicCost: number;
+  salePrice: number;
   publicCostWithIva: number;
   marginPercent: number;
   provider: string;

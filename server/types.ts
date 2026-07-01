@@ -23,6 +23,7 @@ export type ProductRecord = {
   costWithIva: number;
   price: number;
   priceWithIva?: number;
+  salePrice: number;
   pricePuntoPas: number;
   pricePvp: number | null;
   stock: number;
@@ -45,6 +46,7 @@ export type ProductRow = {
   costProvider: number;
   costWithIva: number;
   publicCost: number;
+  salePrice: number;
   publicCostWithIva: number;
   marginPercent: number;
   provider: string;

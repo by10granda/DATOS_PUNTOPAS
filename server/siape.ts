@@ -296,6 +296,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
       costWithIva: providerCostWithIva,
       price,
       priceWithIva: publicPriceWithIva,
+      salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
       pricePuntoPas: numberValue(puntoPas?.precio ?? priceLevel?.precio),
       pricePvp: pvp ? numberValue(pvp.precio) : null,
       stock: Math.max(0, numberValue(item.disponibilidad)),

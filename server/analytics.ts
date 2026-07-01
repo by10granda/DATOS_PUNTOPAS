@@ -11,6 +11,7 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
   const rotation = product.stock > 0 ? salesXMonths / product.stock : salesXMonths;
   const costWithIva = product.costWithIva || product.cost;
   const publicCost = product.price;
+  const salePrice = salesXMonths > 0 && product.salesRevenueWithIva ? product.salesRevenueWithIva / salesXMonths / 1.15 : product.salePrice || 0;
   const publicCostWithIva = product.priceWithIva ?? publicCost * 1.15;
   const catalogUnitProfit = publicCostWithIva - costWithIva;
   const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
@@ -40,6 +41,7 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
     costProvider: product.cost,
     costWithIva,
     publicCost,
+    salePrice,
     publicCostWithIva,
     marginPercent,
     provider: product.provider,

@@ -841,6 +841,7 @@ function DataSection({
     { key: 'costProvider', label: 'Costo Proveedor' },
     { key: 'costWithIva', label: 'Costo + IVA' },
     { key: 'publicCost', label: 'Costo Público' },
+    { key: 'salePrice', label: 'precio_venta' },
     { key: 'publicCostWithIva', label: 'Costo Público + IVA' },
     { key: 'marginPercent', label: 'Margen %' },
     { key: 'provider', label: 'Proveedor' },
@@ -881,6 +882,7 @@ function DataSection({
                 <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                 <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
                 <td className="px-2.5 py-2">{money(row.publicCost)}</td>
+                <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
                 <td className="px-2.5 py-2">{money(row.publicCostWithIva)}</td>
                 <td className="px-2.5 py-2">{percent(row.marginPercent)}</td>
                 <td className="whitespace-nowrap px-2.5 py-2">{row.provider}</td>
@@ -1007,7 +1009,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           <table className="min-w-[1760px] w-full border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-10 bg-[#061a24]">
               <tr>
-                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'Costo Público + IVA', 'Fecha Última Compra', 'Cantidad Última Compra', 'Disponibilidad', 'Margen Ganancia %'].map((label) => (
+                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Fecha Última Compra', 'Cantidad Última Compra', 'Disponibilidad', 'Margen Ganancia %'].map((label) => (
                   <th key={label} className="whitespace-nowrap border-b border-white/10 px-2.5 py-2 text-left font-black uppercase tracking-wide text-cyan-100/70">{label}</th>
                 ))}
               </tr>
@@ -1030,6 +1032,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2">{row.provider}</td>
                   <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                   <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
+                  <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2">{money(row.publicCostWithIva)}</td>
                   <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2">{row.lastPurchaseQuantity}</td>
@@ -1039,7 +1042,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={18} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
+                  <td colSpan={19} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
                 </tr>
               )}
             </tbody>
@@ -1086,6 +1089,7 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Proveedor" value={row.provider} />
           <Detail label="Costo" value={money(row.costProvider)} />
           <Detail label="Precio Venta" value={money(row.publicCost)} />
+          <Detail label="precio_venta" value={row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'} />
           <Detail label="Costo Público + IVA" value={money(row.publicCostWithIva)} />
           <Detail label="Ganancia Unitaria" value={money(row.unitProfit)} />
           <Detail label="Ganancia Total" value={money(row.totalProfit)} />
