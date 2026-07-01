@@ -27,6 +27,12 @@ type SiapeSaleItem = {
   precio_costo?: number | string;
   precio_venta?: number | string;
   fecha_venta?: string;
+  anticipo?: number | string;
+  anticipos?: number | string;
+  anticipo_utilizado?: number | string;
+  anticipos_utilizados?: number | string;
+  valor_anticipo?: number | string;
+  valor_anticipos?: number | string;
 };
 
 type SiapeCatalogItem = {
@@ -43,6 +49,15 @@ type SiapeCatalogItem = {
 
 const numberValue = (value: unknown) => Number(value ?? 0) || 0;
 const textValue = (value: unknown, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
+const saleAdvanceValue = (sale: SiapeSaleItem) => Math.max(
+  0,
+  numberValue(sale.anticipo),
+  numberValue(sale.anticipos),
+  numberValue(sale.anticipo_utilizado),
+  numberValue(sale.anticipos_utilizados),
+  numberValue(sale.valor_anticipo),
+  numberValue(sale.valor_anticipos)
+);
 
 const buildUrl = (baseUrl: string, path: string) => {
   const cleanBase = baseUrl.replace(/\/$/, '');
@@ -123,49 +138,6 @@ const normalizeProviderCostWithIva = (rawCostWithIva: number, providerCost: numb
   return rawCostWithIva || fallbackUnitCostWithIva;
 };
 
-const saleDuplicateKey = (sale: SiapeSaleItem) => [
-  sale.codigo,
-  numberValue(sale.cantidad_vendida).toFixed(4),
-  numberValue(sale.precio_costo).toFixed(4),
-  numberValue(sale.precio_venta).toFixed(4)
-].join('|');
-
-const saleDocumentSignature = (sales: SiapeSaleItem[]) => sales
-  .map((sale) => saleDuplicateKey(sale))
-  .sort((a, b) => a.localeCompare(b))
-  .join('||');
-
-const dedupeEquivalentSaleDocuments = (rows: SiapeSaleItem[]) => {
-  const documentsByTimestamp = new Map<string, SiapeSaleItem[]>();
-
-  for (const row of rows) {
-    const timestamp = dayjs(row.fecha_venta).isValid() ? dayjs(row.fecha_venta).format('YYYY-MM-DDTHH:mm:ss') : 'SIN_FECHA';
-    const documentRows = documentsByTimestamp.get(timestamp) ?? [];
-    documentRows.push(row);
-    documentsByTimestamp.set(timestamp, documentRows);
-  }
-
-  const acceptedDocumentsByDay = new Map<string, Set<string>>();
-  const dedupedRows: SiapeSaleItem[] = [];
-
-  for (const [timestamp, documentRows] of Array.from(documentsByTimestamp.entries()).sort(([a], [b]) => a.localeCompare(b))) {
-    const saleDate = dayjs(timestamp);
-    const signature = saleDocumentSignature(documentRows);
-    const saleDay = saleDate.isValid() ? saleDate.format('YYYY-MM-DD') : 'SIN_FECHA';
-    const acceptedSignatures = acceptedDocumentsByDay.get(saleDay) ?? new Set<string>();
-
-    if (acceptedSignatures.has(signature)) {
-      continue;
-    }
-
-    acceptedSignatures.add(signature);
-    acceptedDocumentsByDay.set(saleDay, acceptedSignatures);
-    dedupedRows.push(...documentRows);
-  }
-
-  return dedupedRows;
-};
-
 const dedupeInventoryByCode = (inventory: SiapeInventoryItem[]) => {
   const byCode = new Map<string, SiapeInventoryItem>();
   for (const item of inventory) {
@@ -214,21 +186,11 @@ const fetchSales = async (baseUrl: string, token: string, dateStart: string, dat
 
   const start = dayjs(dateStart).startOf('day');
   const end = dayjs(dateEnd).endOf('day');
-  const duplicateWindowSeconds = Number(process.env.SIAPE_DUPLICATE_WINDOW_SECONDS ?? 300);
-  const lastAcceptedBySaleKey = new Map<string, dayjs.Dayjs>();
-
-  return dedupeEquivalentSaleDocuments(rows).sort((a, b) => dayjs(a.fecha_venta).valueOf() - dayjs(b.fecha_venta).valueOf()).filter((sale) => {
+  return rows.sort((a, b) => dayjs(a.fecha_venta).valueOf() - dayjs(b.fecha_venta).valueOf()).filter((sale) => {
     const saleDate = dayjs(sale.fecha_venta);
     if (!saleDate.isValid() || saleDate.isBefore(start) || saleDate.isAfter(end)) {
       return false;
     }
-
-    const saleKey = saleDuplicateKey(sale);
-    const lastAcceptedDate = lastAcceptedBySaleKey.get(saleKey);
-    if (lastAcceptedDate && Math.abs(saleDate.diff(lastAcceptedDate, 'second')) <= duplicateWindowSeconds) {
-      return false;
-    }
-    lastAcceptedBySaleKey.set(saleKey, saleDate);
     return true;
   });
 };
@@ -249,6 +211,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
   const salesByProduct = new Map<string, Map<string, number>>();
   const revenueByProduct = new Map<string, number>();
   const profitByProduct = new Map<string, number>();
+  const advancesByProduct = new Map<string, number>();
   const saleDateByProduct = new Map<string, string>();
   const costByProduct = new Map<string, number>();
   const priceByProduct = new Map<string, number>();
@@ -265,6 +228,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
     salesByProduct.set(code, productSales);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
     profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
+    advancesByProduct.set(code, (advancesByProduct.get(code) ?? 0) + saleAdvanceValue(sale));
     const currentSaleDate = saleDateByProduct.get(code);
     if (!currentSaleDate || dayjs(sale.fecha_venta).isAfter(dayjs(currentSaleDate))) {
       saleDateByProduct.set(code, dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('YYYY-MM-DD HH:mm:ss') : '');
@@ -303,6 +267,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
       price,
       priceWithIva: publicPriceWithIva,
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
+      advancesTotal: advancesByProduct.get(item.codigo) ?? 0,
       pricePuntoPas: numberValue(puntoPas?.precio ?? priceLevel?.precio),
       pricePvp: pvp ? numberValue(pvp.precio) : null,
       stock: Math.max(0, numberValue(item.disponibilidad)),
