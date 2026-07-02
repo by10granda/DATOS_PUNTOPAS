@@ -26,9 +26,11 @@ export const exportExcel = (rows: ProductRow[], fileName: string) => {
     'Costo Público': row.publicCost,
     precio_venta: row.salePrice || 'NO CONSTA',
     'Costo Público + IVA': row.publicCostWithIva,
+    'Precio Actual': row.currentPriceWithIva,
     'Precio Punto PAS': row.pricePuntoPas,
     'Precio PVP': row.pricePvp ?? 'NO CONSTA',
     'Margen %': row.marginPercent,
+    'Margen Actual %': row.currentMarginPercent,
     Proveedor: row.provider,
     Rotación: row.rotation,
     'Estado Inventario': row.inventoryState,
@@ -46,7 +48,7 @@ export const exportPdf = (rows: ProductRow[], title: string) => {
   autoTable(doc, {
     startY: 20,
     head: [[
-      'Código', 'Descripción', 'Stock', 'Cantidad Vendida', 'fecha_venta', 'Ganancia Unitaria', 'Ganancia Total', 'Última Compra', 'Costo', 'Costo IVA', 'Precio', 'precio_venta', 'Precio IVA', 'Margen', 'Proveedor', 'Rotación', 'Estado'
+      'Código', 'Descripción', 'Stock', 'Cantidad Vendida', 'fecha_venta', 'Ganancia Unitaria', 'Ganancia Total', 'Última Compra', 'Costo', 'Costo IVA', 'Precio', 'precio_venta', 'Precio IVA', 'Precio Actual', 'Margen', 'Margen Actual', 'Proveedor', 'Rotación', 'Estado'
     ]],
     body: rows.map((row) => [
       row.code,
@@ -62,7 +64,9 @@ export const exportPdf = (rows: ProductRow[], title: string) => {
       row.publicCost.toFixed(2),
       row.salePrice ? row.salePrice.toFixed(2) : 'NO CONSTA',
       row.publicCostWithIva.toFixed(2),
+      row.currentPriceWithIva.toFixed(2),
       row.marginPercent.toFixed(1),
+      row.currentMarginPercent.toFixed(1),
       row.provider,
       row.rotation.toFixed(2),
       row.inventoryState

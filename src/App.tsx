@@ -844,7 +844,9 @@ function DataSection({
     { key: 'publicCost', label: 'Costo Público' },
     { key: 'salePrice', label: 'precio_venta' },
     { key: 'publicCostWithIva', label: 'Costo Público + IVA' },
+    { key: 'currentPriceWithIva', label: 'Precio Actual' },
     { key: 'marginPercent', label: 'Margen %' },
+    { key: 'currentMarginPercent', label: 'Margen Actual %' },
     { key: 'provider', label: 'Proveedor' },
     { key: 'rotation', label: 'Rotación' },
     { key: 'inventoryState', label: 'Estado Inventario' }
@@ -886,7 +888,9 @@ function DataSection({
                 <td className="px-2.5 py-2">{money(row.publicCost)}</td>
                 <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
                 <td className="px-2.5 py-2">{money(row.publicCostWithIva)}</td>
+                <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                 <td className="px-2.5 py-2">{percent(row.marginPercent)}</td>
+                <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{percent(row.currentMarginPercent)}</td>
                 <td className="whitespace-nowrap px-2.5 py-2">{row.provider}</td>
                 <td className="px-2.5 py-2 font-bold">{row.rotation.toFixed(2)}</td>
                 <td className="rounded-r-xl px-2.5 py-2">
@@ -1011,7 +1015,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           <table className="min-w-[1760px] w-full border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-10 bg-[#061a24]">
               <tr>
-                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Fecha Última Compra', 'Cantidad Última Compra', 'Disponibilidad', 'Margen Ganancia %'].map((label) => (
+                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Disponibilidad', 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
                   <th key={label} className="whitespace-nowrap border-b border-white/10 px-2.5 py-2 text-left font-black uppercase tracking-wide text-cyan-100/70">{label}</th>
                 ))}
               </tr>
@@ -1037,15 +1041,17 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
                   <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2">{money(row.publicCostWithIva)}</td>
+                  <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                   <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2">{row.lastPurchaseQuantity}</td>
                   <td className="px-2.5 py-2 font-black text-[#18b8b1]">{row.stock}</td>
                   <td className="rounded-r-xl px-2.5 py-2 font-black">{percent(row.marginPercent)}</td>
+                  <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{percent(row.currentMarginPercent)}</td>
                 </tr>
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={20} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
+                  <td colSpan={22} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
                 </tr>
               )}
             </tbody>
@@ -1095,9 +1101,11 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Precio Venta" value={money(row.publicCost)} />
           <Detail label="precio_venta" value={row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'} />
           <Detail label="Costo Público + IVA" value={money(row.publicCostWithIva)} />
+          <Detail label="Precio Actual" value={money(row.currentPriceWithIva)} />
           <Detail label="Ganancia Unitaria" value={money(row.unitProfit)} />
           <Detail label="Ganancia Total" value={money(row.totalProfit)} />
           <Detail label="Margen" value={percent(row.marginPercent)} />
+          <Detail label="Margen Actual" value={percent(row.currentMarginPercent)} />
           <Detail label="Stock" value={row.stock} />
           <Detail label="Última Compra" value={row.lastPurchase} />
           <Detail label="Recomendación" value={row.recommendation} />

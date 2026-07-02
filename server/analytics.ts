@@ -13,11 +13,13 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
   const publicCost = product.price;
   const salePrice = salesXMonths > 0 && product.salesRevenueWithIva ? product.salesRevenueWithIva / salesXMonths / 1.15 : product.salePrice || 0;
   const publicCostWithIva = (salePrice || publicCost) * 1.15;
+  const currentPriceWithIva = (product.pricePuntoPas || publicCost) * 1.15;
   const catalogUnitProfit = publicCostWithIva - costWithIva;
   const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
   const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;
   const marginBase = product.salesRevenueWithIva && product.salesRevenueWithIva > 0 ? product.salesRevenueWithIva : publicCostWithIva;
   const marginPercent = marginBase > 0 ? ((product.salesProfitWithIva ?? catalogUnitProfit) / marginBase) * 100 : 0;
+  const currentMarginPercent = currentPriceWithIva > 0 ? ((currentPriceWithIva - costWithIva) / currentPriceWithIva) * 100 : 0;
   const estimatedDaysInventory = averageMonthlySales > 0 ? Math.round((product.stock / averageMonthlySales) * 30) : 999;
   const inventoryState = salesXMonths === 0 ? 'Sin ventas' : rotation > 1.25 ? 'Alta rotación' : product.stock > averageMonthlySales * 3 ? 'Sobrestock' : 'Normal';
   const inventorySignal: ProductRow['inventorySignal'] = product.stock > averageMonthlySales * 3 ? 'Sobrestock' : salesXMonths === 0 ? 'Atención' : rotation > 1 ? 'Normal' : 'Atención';
@@ -44,7 +46,9 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
     publicCost,
     salePrice,
     publicCostWithIva,
+    currentPriceWithIva,
     marginPercent,
+    currentMarginPercent,
     provider: product.provider,
     rotation,
     inventoryState,

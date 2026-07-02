@@ -19,7 +19,9 @@ export type ProductRow = {
   publicCost: number;
   salePrice: number;
   publicCostWithIva: number;
+  currentPriceWithIva: number;
   marginPercent: number;
+  currentMarginPercent: number;
   provider: string;
   rotation: number;
   inventoryState: string;

@@ -205,17 +205,19 @@ const buildRow = (product) => {
   const publicCost = product.price;
   const salePrice = salesXMonths > 0 && product.salesRevenueWithIva ? product.salesRevenueWithIva / salesXMonths / 1.15 : product.salePrice || 0;
   const publicCostWithIva = (salePrice || publicCost) * 1.15;
+  const currentPriceWithIva = (product.pricePuntoPas || publicCost) * 1.15;
   const catalogUnitProfit = publicCostWithIva - costWithIva;
   const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
   const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;
   const marginBase = product.salesRevenueWithIva && product.salesRevenueWithIva > 0 ? product.salesRevenueWithIva : publicCostWithIva;
   const marginPercent = marginBase > 0 ? ((product.salesProfitWithIva ?? catalogUnitProfit) / marginBase) * 100 : 0;
+  const currentMarginPercent = currentPriceWithIva > 0 ? ((currentPriceWithIva - costWithIva) / currentPriceWithIva) * 100 : 0;
   const estimatedDaysInventory = averageMonthlySales > 0 ? Math.round((product.stock / averageMonthlySales) * 30) : 999;
   const inventoryState = salesXMonths === 0 ? 'Sin ventas' : rotation > 1.25 ? 'Alta rotacion' : product.stock > averageMonthlySales * 3 ? 'Sobrestock' : 'Normal';
   const inventorySignal = product.stock > averageMonthlySales * 3 ? 'Sobrestock' : salesXMonths === 0 ? 'Atención' : rotation > 1 ? 'Normal' : 'Atención';
   const recommendation = salesXMonths === 0 ? 'Se recomienda detener compras y revisar portafolio.' : product.stock > averageMonthlySales * 3 ? `Este producto tiene sobrestock para aproximadamente ${Math.max(1, Math.round(estimatedDaysInventory / 30))} meses.` : estimatedDaysInventory <= 30 ? `Este producto tiene alta rotacion y se agotara en ${Math.max(1, estimatedDaysInventory)} dias.` : 'Se recomienda mantener el nivel actual de inventario.';
 
-  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, saleDate: product.saleDate, costProvider: product.cost, costWithIva, publicCost, salePrice, publicCostWithIva, marginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory };
+  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, saleDate: product.saleDate, costProvider: product.cost, costWithIva, publicCost, salePrice, publicCostWithIva, currentPriceWithIva, marginPercent, currentMarginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory };
 };
 
 export const buildDashboard = (products, params) => {
