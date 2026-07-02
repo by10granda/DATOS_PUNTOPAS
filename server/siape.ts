@@ -10,6 +10,7 @@ type SiapeInventoryItem = {
   tipo?: string;
   disponibilidad?: number;
   dias_en_bodega?: number;
+  bodegas?: Array<{ bodegaALMACEN?: string; stock?: number | string }>;
   niveles_precio?: Array<{ nivel: string; precio: number }>;
   proveedores?: Array<{
     nombre_proveedor?: string;
@@ -135,6 +136,7 @@ const dedupeInventoryByCode = (inventory: SiapeInventoryItem[]) => {
     byCode.set(item.codigo, {
       ...existing,
       ...item,
+      bodegas: mergeWarehouses(existing.bodegas, item.bodegas),
       niveles_precio: item.niveles_precio?.length ? item.niveles_precio : existing.niveles_precio,
       proveedores: item.proveedores?.length ? item.proveedores : existing.proveedores,
       disponibilidad: Math.max(numberValue(existing.disponibilidad), numberValue(item.disponibilidad))
@@ -142,6 +144,19 @@ const dedupeInventoryByCode = (inventory: SiapeInventoryItem[]) => {
   }
   return Array.from(byCode.values());
 };
+
+const mergeWarehouses = (current: SiapeInventoryItem['bodegas'] = [], next: SiapeInventoryItem['bodegas'] = []) => {
+  const byName = new Map<string, number>();
+  for (const warehouse of [...current, ...next]) {
+    const name = textValue(warehouse?.bodegaALMACEN, 'SIN BODEGA').toUpperCase();
+    byName.set(name, Math.max(byName.get(name) ?? 0, Math.max(0, numberValue(warehouse?.stock))));
+  }
+  return Array.from(byName.entries()).map(([bodegaALMACEN, stock]) => ({ bodegaALMACEN, stock }));
+};
+
+const mapWarehouseStocks = (warehouses: SiapeInventoryItem['bodegas'] = []) => Object.fromEntries(
+  warehouses.map((warehouse) => [textValue(warehouse?.bodegaALMACEN, 'SIN BODEGA').toUpperCase(), Math.max(0, numberValue(warehouse?.stock))])
+);
 
 const fetchSales = async (baseUrl: string, token: string, dateStart: string, dateEnd: string) => {
   const pageSize = Number(process.env.SIAPE_PAGE_SIZE ?? 5000);
@@ -255,6 +270,8 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
     const salesAverageMarginPercent = soldQuantity > 0
       ? salePrices.reduce((sum, sale) => sum + (sale.priceWithIva > 0 ? ((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity : 0), 0) / soldQuantity
       : undefined;
+    const warehouseStocks = mapWarehouseStocks(item.bodegas);
+    const stockTotal = Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0);
 
     return {
       id: `ALMACEN PAS-${item.codigo}`,
@@ -273,7 +290,9 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
       pricePuntoPas: numberValue(puntoPas?.precio ?? priceLevel?.precio),
       pricePvp: pvp ? numberValue(pvp.precio) : null,
-      stock: Math.max(0, numberValue(item.disponibilidad)),
+      stock: stockTotal,
+      stockTotal,
+      warehouseStocks,
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),

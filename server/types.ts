@@ -29,6 +29,8 @@ export type ProductRecord = {
   pricePuntoPas: number;
   pricePvp: number | null;
   stock: number;
+  stockTotal: number;
+  warehouseStocks: Record<string, number>;
   lastPurchase: string;
   saleDate: string;
   lastPurchaseQuantity: number;
@@ -43,6 +45,8 @@ export type ProductRow = {
   code: string;
   description: string;
   stock: number;
+  stockTotal: number;
+  warehouseStocks: Record<string, number>;
   salesXMonths: number;
   unitProfit: number;
   totalProfit: number;
@@ -88,6 +92,7 @@ export type DashboardResponse = {
   availableBrands: string[];
   availableLines: string[];
   availableTypes: string[];
+  availableWarehouses: string[];
   availableProducts: { code: string; description: string }[];
   kpis: {
     totalProducts: number;
@@ -145,6 +150,7 @@ export type ProductOverviewResponse = {
   };
   weeklyUnitsSeries: { week: string; quantity: number }[];
   weeklyRevenueSeries: { week: string; revenue: number }[];
+  availableWarehouses: string[];
   availableLines: string[];
   availableCategories: string[];
   availableTypes: string[];

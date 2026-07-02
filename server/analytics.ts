@@ -37,6 +37,8 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
     code: product.code,
     description: product.description,
     stock: product.stock,
+    stockTotal: product.stockTotal,
+    warehouseStocks: product.warehouseStocks,
     salesXMonths,
     unitProfit,
     totalProfit,
@@ -134,6 +136,7 @@ export const buildDashboard = (
   const brands = Array.from(new Set(facetProducts.map((row) => row.brand))).sort((a, b) => a.localeCompare(b, 'es'));
   const lines = Array.from(new Set(facetProducts.map((row) => row.line))).sort((a, b) => a.localeCompare(b, 'es'));
   const types = Array.from(new Set(facetProducts.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es'));
+  const warehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks)))).sort((a, b) => a.localeCompare(b, 'es'));
   const availableProducts = facetProducts
     .map((row) => ({ code: row.code, description: row.description }))
     .sort((a, b) => a.description.localeCompare(b.description, 'es'));
@@ -164,6 +167,7 @@ export const buildDashboard = (
     availableBrands: brands,
     availableLines: lines,
     availableTypes: types,
+    availableWarehouses: warehouses,
     availableProducts,
     kpis: {
       totalProducts: rows.length,
@@ -271,6 +275,7 @@ export const buildProductOverview = (
   const weeklyUnitsSeries = weeklyLabels.map((week) => ({ week, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.quantity ?? 0), 0) }));
   const weeklyRevenueSeries = weeklyLabels.map((week) => ({ week, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.revenue ?? 0), 0) }));
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
+  const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks)))).sort((a, b) => a.localeCompare(b, 'es'));
 
   return {
     branch: params.branch,
@@ -298,6 +303,7 @@ export const buildProductOverview = (
     availableCategories: Array.from(new Set(rows.map((row) => row.category))).sort((a, b) => a.localeCompare(b, 'es')),
     availableTypes: Array.from(new Set(rows.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es')),
     availableBrands: Array.from(new Set(rows.map((row) => row.brand))).sort((a, b) => a.localeCompare(b, 'es')),
+    availableWarehouses,
     rows,
   };
 };

@@ -69,6 +69,7 @@ const dedupeInventoryByCode = (inventory) => {
     byCode.set(item.codigo, {
       ...existing,
       ...item,
+      bodegas: mergeWarehouses(existing.bodegas, item.bodegas),
       niveles_precio: item.niveles_precio?.length ? item.niveles_precio : existing.niveles_precio,
       proveedores: item.proveedores?.length ? item.proveedores : existing.proveedores,
       disponibilidad: Math.max(numberValue(existing.disponibilidad), numberValue(item.disponibilidad))
@@ -76,6 +77,19 @@ const dedupeInventoryByCode = (inventory) => {
   }
   return Array.from(byCode.values());
 };
+
+const mergeWarehouses = (current = [], next = []) => {
+  const byName = new Map();
+  for (const warehouse of [...current, ...next]) {
+    const name = textValue(warehouse?.bodegaALMACEN, 'SIN BODEGA').toUpperCase();
+    byName.set(name, Math.max(byName.get(name) ?? 0, Math.max(0, numberValue(warehouse?.stock))));
+  }
+  return Array.from(byName.entries()).map(([bodegaALMACEN, stock]) => ({ bodegaALMACEN, stock }));
+};
+
+const mapWarehouseStocks = (warehouses = []) => Object.fromEntries(
+  warehouses.map((warehouse) => [textValue(warehouse?.bodegaALMACEN, 'SIN BODEGA').toUpperCase(), Math.max(0, numberValue(warehouse?.stock))])
+);
 
 const fetchSales = async (baseUrl, token, dateStart, dateEnd) => {
   const pageSize = Number(process.env.SIAPE_PAGE_SIZE ?? 5000);
@@ -185,6 +199,8 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     const soldQuantity = salePrices.reduce((sum, sale) => sum + sale.quantity, 0);
     const salesProfitWithProviderCost = salePrices.reduce((sum, sale) => sum + ((sale.priceWithIva - providerCostWithIva) * sale.quantity), 0);
     const salesAverageMarginPercent = soldQuantity > 0 ? salePrices.reduce((sum, sale) => sum + (sale.priceWithIva > 0 ? ((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity : 0), 0) / soldQuantity : undefined;
+    const warehouseStocks = mapWarehouseStocks(item.bodegas);
+    const stockTotal = Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0);
 
     return {
       id: `ALMACEN PAS-${item.codigo}`,
@@ -203,7 +219,9 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
       pricePuntoPas: numberValue(puntoPas?.precio ?? priceLevel?.precio),
       pricePvp: pvp ? numberValue(pvp.precio) : null,
-      stock: Math.max(0, numberValue(item.disponibilidad)),
+      stock: stockTotal,
+      stockTotal,
+      warehouseStocks,
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
@@ -264,6 +282,7 @@ export const buildDashboard = (products, params) => {
   const averageGeneralSales = rows.length ? rows.reduce((acc, row) => acc + row.salesXMonths, 0) / rows.length : 0;
   const averageMargin = rows.length ? rows.reduce((sum, row) => sum + row.marginPercent, 0) / rows.length : 0;
   const donutSeries = monthLabels.map((month) => ({ name: month, value: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === month)?.quantity ?? 0), 0) })).filter((item) => item.value > 0);
+  const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
 
   return {
     branch: params.branch,
@@ -279,6 +298,7 @@ export const buildDashboard = (products, params) => {
     availableBrands: Array.from(new Set(facetProducts.map((row) => row.brand))).sort((a, b) => a.localeCompare(b, 'es')),
     availableLines: Array.from(new Set(facetProducts.map((row) => row.line))).sort((a, b) => a.localeCompare(b, 'es')),
     availableTypes: Array.from(new Set(facetProducts.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es')),
+    availableWarehouses,
     availableProducts: facetProducts.map((row) => ({ code: row.code, description: row.description })).sort((a, b) => a.description.localeCompare(b.description, 'es')),
     kpis: { totalProducts: rows.length, totalUnitsSold, totalStock, totalProfit, highRotation: rows.filter((row) => row.salesXMonths > averageGeneralSales).length, noSales: rows.filter((row) => row.salesXMonths === 0).length, overstock: rows.filter((row) => row.stock > row.averageMonthlySales * 3).length, averageMargin },
     monthlySeries: totalsByMonth,
@@ -350,6 +370,7 @@ export const buildProductOverview = (products, params) => {
   const weeklyUnitsSeries = weeklyLabels.map((week) => ({ week, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.quantity ?? 0), 0) }));
   const weeklyRevenueSeries = weeklyLabels.map((week) => ({ week, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.revenue ?? 0), 0) }));
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
+  const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
 
   return {
     branch: params.branch,
@@ -377,6 +398,7 @@ export const buildProductOverview = (products, params) => {
     availableCategories: Array.from(new Set(rows.map((row) => row.category))).sort((a, b) => a.localeCompare(b, 'es')),
     availableTypes: Array.from(new Set(rows.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es')),
     availableBrands: Array.from(new Set(rows.map((row) => row.brand))).sort((a, b) => a.localeCompare(b, 'es')),
+    availableWarehouses,
     rows
   };
 };

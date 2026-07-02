@@ -9,6 +9,8 @@ export type ProductRow = {
   code: string;
   description: string;
   stock: number;
+  stockTotal: number;
+  warehouseStocks: Record<string, number>;
   salesXMonths: number;
   unitProfit: number;
   totalProfit: number;
@@ -55,6 +57,7 @@ export type DashboardResponse = {
   availableBrands: string[];
   availableLines: string[];
   availableTypes: string[];
+  availableWarehouses: string[];
   availableProducts: { code: string; description: string }[];
   kpis: {
     totalProducts: number;
@@ -116,5 +119,6 @@ export type ProductOverviewResponse = {
   availableCategories: string[];
   availableTypes: string[];
   availableBrands: string[];
+  availableWarehouses: string[];
   rows: ProductOverviewRow[];
 };

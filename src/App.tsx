@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { fetchBranches, fetchDashboard, fetchProductOverview } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
@@ -827,12 +827,13 @@ function AnalysisButton({ active, label, onClick }: { active: boolean; label: st
 }
 
 function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
+  const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   return (
     <div className="mt-4 overflow-x-auto scrollbar-thin">
       <table className="min-w-[1800px] w-full border-separate border-spacing-y-1 text-xs">
         <thead>
           <tr>
-            {['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock actual', 'Unidades vendidas', 'Valor vendido', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
+            {['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades vendidas', 'Valor vendido', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
               <th key={label} className="whitespace-nowrap border-b border-slate-700 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-400">{label}</th>
             ))}
           </tr>
@@ -846,7 +847,8 @@ function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
               <td className="px-2.5 py-2">{row.line}</td>
               <td className="px-2.5 py-2">{row.category}</td>
               <td className="px-2.5 py-2">{row.type}</td>
-              <td className="px-2.5 py-2 font-black">{row.stock}</td>
+              <td className="px-2.5 py-2 font-black">{row.stockTotal}</td>
+              {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
               <td className="px-2.5 py-2 font-black">{row.salesXMonths}</td>
               <td className="px-2.5 py-2 font-black text-corporateGreen">{money(row.valueSold)}</td>
               <td className="px-2.5 py-2 font-black text-emerald-300">{money(row.totalProfit)}</td>
@@ -894,7 +896,7 @@ function ExecutiveSummary({ data, scopeTitle, periodLabel, onRowClick, onTrendCl
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <DarkMetric label="Stock Actual" value={data.kpis.totalStock.toLocaleString('es-EC')} />
+            <DarkMetric label="Stock Total" value={data.kpis.totalStock.toLocaleString('es-EC')} />
             <DarkMetric label="Ganancia" value={money(data.kpis.totalProfit)} />
             <DarkMetric label="Productos" value={data.kpis.totalProducts.toLocaleString('es-EC')} />
             <DarkMetric label="Stock Crítico" value={stockCritical.toLocaleString('es-EC')} danger />
@@ -944,7 +946,7 @@ function ExecutiveSummary({ data, scopeTitle, periodLabel, onRowClick, onTrendCl
               </div>
               <div className="mt-4 flex gap-5 text-xs font-bold text-cyan-100/70">
                 <span><span className="mr-2 inline-block h-3 w-3 rounded-sm bg-[#ffbe1b]" />Ventas</span>
-                <span><span className="mr-2 inline-block h-3 w-3 rounded-sm bg-[#18b8b1]" />Stock actual</span>
+                <span><span className="mr-2 inline-block h-3 w-3 rounded-sm bg-[#18b8b1]" />Stock total</span>
               </div>
             </div>
           </div>
@@ -1093,10 +1095,11 @@ function DataSection({
   onExportExcel: () => void;
   onExportPdf: () => void;
 }) {
+  const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const columns: Array<{ key: keyof ProductRow; label: string }> = [
     { key: 'code', label: 'Código' },
     { key: 'description', label: 'Descripción' },
-    { key: 'stock', label: 'Stock Actual' },
+    { key: 'stockTotal', label: 'Stock Total' },
     { key: 'salesXMonths', label: 'Cantidad Vendida' },
     { key: 'saleDate', label: 'fecha_venta' },
     { key: 'totalProfit', label: 'Ganancia Total' },
@@ -1128,10 +1131,15 @@ function DataSection({
           <thead>
             <tr>
               {columns.map((column) => (
-                <th key={column.key as string} onClick={() => onSort?.(column.key)} className="cursor-pointer whitespace-nowrap border-b border-slate-200 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                  {column.label}
-                  {sortKey === column.key && <span className="ml-2 text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>}
-                </th>
+                <Fragment key={column.key as string}>
+                  <th onClick={() => onSort?.(column.key)} className="cursor-pointer whitespace-nowrap border-b border-slate-200 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    {column.label}
+                    {sortKey === column.key && <span className="ml-2 text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                  </th>
+                  {column.key === 'stockTotal' && warehouseColumns.map((warehouse) => (
+                    <th key={warehouse} className="whitespace-nowrap border-b border-slate-200 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">{warehouse}</th>
+                  ))}
+                </Fragment>
               ))}
             </tr>
           </thead>
@@ -1140,7 +1148,8 @@ function DataSection({
               <tr key={row.id} onClick={() => onRowClick(row)} className="cursor-pointer rounded-xl bg-white/80 shadow-sm transition hover:-translate-y-0.5 hover:bg-corporateBlue/5 hover:shadow-md dark:bg-slate-800/70 dark:hover:bg-slate-800">
                 <td className="whitespace-nowrap rounded-l-xl px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{row.code}</td>
                 <td className="max-w-[240px] truncate px-2.5 py-2">{row.description}</td>
-                <td className="px-2.5 py-2">{row.stock}</td>
+                <td className="px-2.5 py-2 font-black">{row.stockTotal}</td>
+                {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                 <td className="px-2.5 py-2">{row.salesXMonths}</td>
                 <td className="whitespace-nowrap px-2.5 py-2">{row.saleDate || 'NO CONSTA'}</td>
                 <td className="px-2.5 py-2 font-black text-emerald-700 dark:text-emerald-300">{money(row.totalProfit)}</td>
@@ -1203,6 +1212,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const totalSalesMoney = visibleRows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0);
   const soldAverageMargin = visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0;
   const soldUnits = visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0);
+  const warehouseColumns = Array.from(new Set(visibleRows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
 
   return (
     <section className="overflow-hidden rounded-[1.5rem] bg-[#061a24] text-white shadow-2xl">
@@ -1274,10 +1284,10 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
         </div>
 
         <div className="overflow-auto px-4 pb-4 pt-3 scrollbar-thin">
-          <table className="min-w-[1760px] w-full border-separate border-spacing-y-1 text-xs">
+          <table className="min-w-[1900px] w-full border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-10 bg-[#061a24]">
               <tr>
-                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Disponibilidad', 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
+                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
                   <th key={label} className="whitespace-nowrap border-b border-white/10 px-2.5 py-2 text-left font-black uppercase tracking-wide text-cyan-100/70">{label}</th>
                 ))}
               </tr>
@@ -1306,14 +1316,15 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                   <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2">{row.lastPurchaseQuantity}</td>
-                  <td className="px-2.5 py-2 font-black text-[#18b8b1]">{row.stock}</td>
+                  <td className="px-2.5 py-2 font-black text-[#18b8b1]">{row.stockTotal}</td>
+                  {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                   <td className="rounded-r-xl px-2.5 py-2 font-black">{percent(row.marginPercent)}</td>
                   <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{percent(row.currentMarginPercent)}</td>
                 </tr>
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={22} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
+                  <td colSpan={22 + warehouseColumns.length} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
                 </tr>
               )}
             </tbody>
@@ -1340,8 +1351,8 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
 
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-gradient-to-br from-corporateBlue to-slate-950 p-4 text-white shadow-xl">
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Stock Actual</div>
-            <div className="mt-1 text-3xl font-black">{row.stock}</div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Stock Total</div>
+            <div className="mt-1 text-3xl font-black">{row.stockTotal}</div>
           </div>
           <div className="rounded-2xl bg-gradient-to-br from-corporateRed to-red-900 p-4 text-white shadow-xl">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Cantidad Vendida</div>
@@ -1368,7 +1379,8 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Ganancia Total" value={money(row.totalProfit)} />
           <Detail label="Margen" value={percent(row.marginPercent)} />
           <Detail label="Margen Actual" value={percent(row.currentMarginPercent)} />
-          <Detail label="Stock" value={row.stock} />
+          <Detail label="Stock Total" value={row.stockTotal} />
+          {Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => <Detail key={warehouse} label={warehouse} value={stock} />)}
           <Detail label="Última Compra" value={row.lastPurchase} />
           <Detail label="Recomendación" value={row.recommendation} />
         </div>

@@ -8,6 +8,7 @@ export const money = (value: number) => value.toLocaleString('es-EC', { style: '
 export const percent = (value: number) => `${value.toFixed(1)}%`;
 
 export const exportExcel = (rows: ProductRow[], fileName: string) => {
+  const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const data = rows.map((row) => ({
     Código: row.code,
     Descripción: row.description,
@@ -15,7 +16,8 @@ export const exportExcel = (rows: ProductRow[], fileName: string) => {
     Línea: row.line,
     Categoría: row.category,
     Tipo: row.type,
-    'Stock Actual': row.stock,
+    'Stock Total': row.stockTotal,
+    ...Object.fromEntries(warehouseColumns.map((warehouse) => [warehouse, row.warehouseStocks?.[warehouse] ?? 0])),
     'Cantidad Vendida': row.salesXMonths,
     fecha_venta: row.saleDate || 'NO CONSTA',
     'Ganancia Unitaria': row.unitProfit,
@@ -42,18 +44,20 @@ export const exportExcel = (rows: ProductRow[], fileName: string) => {
 };
 
 export const exportPdf = (rows: ProductRow[], title: string) => {
+  const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const doc = new jsPDF({ orientation: 'landscape' });
   doc.setFontSize(14);
   doc.text(title, 14, 14);
   autoTable(doc, {
     startY: 20,
     head: [[
-      'Código', 'Descripción', 'Stock', 'Cantidad Vendida', 'fecha_venta', 'Ganancia Unitaria', 'Ganancia Total', 'Última Compra', 'Costo', 'Costo IVA', 'Precio', 'precio_venta', 'Precio IVA', 'Precio Actual', 'Margen', 'Margen Actual', 'Proveedor', 'Rotación', 'Estado'
+      'Código', 'Descripción', 'Stock Total', ...warehouseColumns, 'Cantidad Vendida', 'fecha_venta', 'Ganancia Unitaria', 'Ganancia Total', 'Última Compra', 'Costo', 'Costo IVA', 'Precio', 'precio_venta', 'Precio IVA', 'Precio Actual', 'Margen', 'Margen Actual', 'Proveedor', 'Rotación', 'Estado'
     ]],
     body: rows.map((row) => [
       row.code,
       row.description,
-      row.stock,
+      row.stockTotal,
+      ...warehouseColumns.map((warehouse) => row.warehouseStocks?.[warehouse] ?? 0),
       row.salesXMonths,
       row.saleDate || 'NO CONSTA',
       row.unitProfit.toFixed(2),
