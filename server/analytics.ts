@@ -191,6 +191,10 @@ export const buildDashboard = (
 };
 
 const safeDivide = (value: number, max: number) => max > 0 ? value / max : 0;
+const averageValidMargins = (rows: ProductRow[]) => {
+  const margins = rows.map((row) => row.marginPercent).filter((margin) => Number.isFinite(margin));
+  return margins.length ? margins.reduce((sum, margin) => sum + margin, 0) / margins.length : 0;
+};
 const slope = (values: number[]) => {
   const n = values.length;
   if (n < 2) return 0;
@@ -301,7 +305,7 @@ export const buildProductOverview = (
       totalUnitsSold: rows.reduce((sum, row) => sum + row.salesXMonths, 0),
       totalRevenue,
       totalProfit: rows.reduce((sum, row) => sum + row.totalProfit, 0),
-      averageMargin: soldRows.length ? soldRows.reduce((sum, row) => sum + row.marginPercent, 0) / soldRows.length : 0,
+      averageMargin: averageValidMargins(soldRows),
       activeProducts: soldRows.length,
       noMovementProducts: rows.filter((row) => row.salesXMonths === 0).length,
       highRotationProducts: rows.filter((row) => row.rotation >= 1 || row.averageDailySales >= 1).length,

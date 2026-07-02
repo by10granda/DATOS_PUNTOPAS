@@ -199,9 +199,10 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     const productRevenue = revenueByProductBucket.get(item.codigo) ?? new Map();
     const productProfit = profitByProductBucket.get(item.codigo) ?? new Map();
     const salePrices = salePricesWithIvaByProduct.get(item.codigo) ?? [];
-    const soldQuantity = salePrices.reduce((sum, sale) => sum + sale.quantity, 0);
+    const marginSales = salePrices.filter((sale) => sale.quantity > 0 && sale.priceWithIva > 0);
+    const soldQuantity = marginSales.reduce((sum, sale) => sum + sale.quantity, 0);
     const salesProfitWithProviderCost = salePrices.reduce((sum, sale) => sum + ((sale.priceWithIva - providerCostWithIva) * sale.quantity), 0);
-    const salesAverageMarginPercent = soldQuantity > 0 ? salePrices.reduce((sum, sale) => sum + (sale.priceWithIva > 0 ? ((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity : 0), 0) / soldQuantity : undefined;
+    const salesAverageMarginPercent = soldQuantity > 0 ? marginSales.reduce((sum, sale) => sum + (((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity), 0) / soldQuantity : undefined;
     const warehouseStocks = mapWarehouseStocks(item.bodegas);
     const stockTotal = Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0);
 
@@ -316,6 +317,10 @@ export const buildDashboard = (products, params) => {
 };
 
 const safeDivide = (value, max) => max > 0 ? value / max : 0;
+const averageValidMargins = (rows) => {
+  const margins = rows.map((row) => row.marginPercent).filter((margin) => Number.isFinite(margin));
+  return margins.length ? margins.reduce((sum, margin) => sum + margin, 0) / margins.length : 0;
+};
 const slope = (values) => {
   const n = values.length;
   if (n < 2) return 0;
@@ -397,7 +402,7 @@ export const buildProductOverview = (products, params) => {
       totalUnitsSold: rows.reduce((sum, row) => sum + row.salesXMonths, 0),
       totalRevenue,
       totalProfit: rows.reduce((sum, row) => sum + row.totalProfit, 0),
-      averageMargin: soldRows.length ? soldRows.reduce((sum, row) => sum + row.marginPercent, 0) / soldRows.length : 0,
+      averageMargin: averageValidMargins(soldRows),
       activeProducts: soldRows.length,
       noMovementProducts: rows.filter((row) => row.salesXMonths === 0).length,
       highRotationProducts: rows.filter((row) => row.rotation >= 1 || row.averageDailySales >= 1).length,

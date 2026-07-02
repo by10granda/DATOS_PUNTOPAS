@@ -268,10 +268,11 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
     const productRevenue = revenueByProductBucket.get(item.codigo) ?? new Map<string, number>();
     const productProfit = profitByProductBucket.get(item.codigo) ?? new Map<string, number>();
     const salePrices = salePricesWithIvaByProduct.get(item.codigo) ?? [];
-    const soldQuantity = salePrices.reduce((sum, sale) => sum + sale.quantity, 0);
+    const marginSales = salePrices.filter((sale) => sale.quantity > 0 && sale.priceWithIva > 0);
+    const soldQuantity = marginSales.reduce((sum, sale) => sum + sale.quantity, 0);
     const salesProfitWithProviderCost = salePrices.reduce((sum, sale) => sum + ((sale.priceWithIva - providerCostWithIva) * sale.quantity), 0);
     const salesAverageMarginPercent = soldQuantity > 0
-      ? salePrices.reduce((sum, sale) => sum + (sale.priceWithIva > 0 ? ((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity : 0), 0) / soldQuantity
+      ? marginSales.reduce((sum, sale) => sum + (((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity), 0) / soldQuantity
       : undefined;
     const warehouseStocks = mapWarehouseStocks(item.bodegas);
     const stockTotal = Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0);
