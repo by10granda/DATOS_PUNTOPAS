@@ -1,4 +1,5 @@
-import type { DashboardResponse, PeriodMonths, ProductRecord, ProductRow } from './types';
+import dayjs from 'dayjs';
+import type { DashboardResponse, PeriodMonths, ProductOverviewResponse, ProductOverviewRow, ProductRecord, ProductRow } from './types';
 
 export const normalizeText = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
@@ -182,5 +183,121 @@ export const buildDashboard = (
     topRotationRows,
     noSalesRows,
     overstockRows,
+  };
+};
+
+const safeDivide = (value: number, max: number) => max > 0 ? value / max : 0;
+const slope = (values: number[]) => {
+  const n = values.length;
+  if (n < 2) return 0;
+  const avgX = (n - 1) / 2;
+  const avgY = values.reduce((sum, value) => sum + value, 0) / n;
+  const numerator = values.reduce((sum, value, index) => sum + ((index - avgX) * (value - avgY)), 0);
+  const denominator = values.reduce((sum, _value, index) => sum + ((index - avgX) ** 2), 0);
+  return denominator > 0 ? numerator / denominator : 0;
+};
+
+export const buildProductOverview = (
+  products: ProductRecord[],
+  params: { branch: string; periodMonths: PeriodMonths; dateStart: string; dateEnd: string; cacheKey: string; generatedAt: string }
+): ProductOverviewResponse => {
+  const periodDays = Math.max(1, dayjs(params.dateEnd).diff(dayjs(params.dateStart), 'day') + 1);
+  const baseRows = products.map((product) => buildRow(product, params.periodMonths));
+  const rowsByRevenue = [...baseRows].sort((a, b) => b.publicCostWithIva * b.salesXMonths - a.publicCostWithIva * a.salesXMonths);
+  const totalRevenue = rowsByRevenue.reduce((sum, row) => sum + row.publicCostWithIva * row.salesXMonths, 0);
+  let cumulativeRevenue = 0;
+  const abcByCode = new Map<string, { abcClass: 'A' | 'B' | 'C'; pareto: boolean }>();
+
+  rowsByRevenue.forEach((row) => {
+    cumulativeRevenue += row.publicCostWithIva * row.salesXMonths;
+    const cumulativePercent = totalRevenue > 0 ? cumulativeRevenue / totalRevenue : 0;
+    abcByCode.set(row.code, { abcClass: cumulativePercent <= 0.8 ? 'A' : cumulativePercent <= 0.95 ? 'B' : 'C', pareto: cumulativePercent <= 0.8 });
+  });
+
+  const enrichedRows: ProductOverviewRow[] = baseRows.map((row) => {
+    const weeklyQuantities = row.monthlySales.map((sale) => sale.quantity);
+    const weeklyAverage = weeklyQuantities.length ? weeklyQuantities.reduce((sum, value) => sum + value, 0) / weeklyQuantities.length : 0;
+    const variance = weeklyQuantities.length ? weeklyQuantities.reduce((sum, value) => sum + ((value - weeklyAverage) ** 2), 0) / weeklyQuantities.length : 0;
+    const coefficientVariation = weeklyAverage > 0 ? Math.sqrt(variance) / weeklyAverage : 0;
+    const trendSlope = slope(weeklyQuantities);
+    const firstHalf = weeklyQuantities.slice(0, Math.max(1, Math.floor(weeklyQuantities.length / 2))).reduce((sum, value) => sum + value, 0);
+    const secondHalf = weeklyQuantities.slice(Math.floor(weeklyQuantities.length / 2)).reduce((sum, value) => sum + value, 0);
+    const trendPercent = firstHalf > 0 ? ((secondHalf - firstHalf) / firstHalf) * 100 : secondHalf > 0 ? 100 : 0;
+    const averageDailySales = row.salesXMonths / periodDays;
+    const coverageDays = averageDailySales > 0 ? row.stock / averageDailySales : 999;
+    const daysSinceLastSale = row.saleDate ? Math.max(0, dayjs(params.dateEnd).diff(dayjs(row.saleDate), 'day')) : 999;
+    const valueSold = row.publicCostWithIva * row.salesXMonths;
+    const abc = abcByCode.get(row.code) ?? { abcClass: 'C' as const, pareto: false };
+
+    return {
+      ...row,
+      valueSold,
+      averageDailySales,
+      coverageDays,
+      daysSinceLastSale,
+      abcClass: abc.abcClass,
+      xyzClass: coefficientVariation <= 0.35 ? 'X' : coefficientVariation <= 0.8 ? 'Y' : 'Z',
+      pareto: abc.pareto,
+      trend: trendSlope > 0.2 ? 'Creciente' : trendSlope < -0.2 ? 'Decreciente' : 'Estable',
+      trendPercent,
+      smartScore: 0,
+      immobilizedCapital: row.stock * row.costWithIva,
+    };
+  });
+
+  const maxRotation = Math.max(...enrichedRows.map((row) => row.rotation), 1);
+  const maxProfit = Math.max(...enrichedRows.map((row) => row.totalProfit), 1);
+  const maxRevenue = Math.max(...enrichedRows.map((row) => row.valueSold), 1);
+  const maxFrequency = Math.max(...enrichedRows.map((row) => row.monthlySales.filter((sale) => sale.quantity > 0).length), 1);
+  const maxStock = Math.max(...enrichedRows.map((row) => row.stock), 1);
+  const rows = enrichedRows.map((row) => {
+    const frequency = row.monthlySales.filter((sale) => sale.quantity > 0).length;
+    const coverageScore = row.coverageDays <= 45 ? 1 : row.coverageDays <= 90 ? 0.65 : row.coverageDays <= 180 ? 0.35 : 0.1;
+    const stockScore = 1 - safeDivide(row.stock, maxStock) * 0.35;
+    return {
+      ...row,
+      smartScore: Math.round((
+        safeDivide(row.rotation, maxRotation) * 25 +
+        safeDivide(row.totalProfit, maxProfit) * 25 +
+        coverageScore * 15 +
+        safeDivide(frequency, maxFrequency) * 15 +
+        safeDivide(row.valueSold, maxRevenue) * 15 +
+        stockScore * 5
+      ) * 100) / 100,
+    };
+  }).sort((a, b) => b.smartScore - a.smartScore);
+
+  const weeklyLabels = Array.from(new Set(products.flatMap((product) => product.monthlySales.map((sale) => sale.month))));
+  const weeklyUnitsSeries = weeklyLabels.map((week) => ({ week, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.quantity ?? 0), 0) }));
+  const weeklyRevenueSeries = weeklyLabels.map((week) => ({ week, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.revenue ?? 0), 0) }));
+  const soldRows = rows.filter((row) => row.salesXMonths > 0);
+
+  return {
+    branch: params.branch,
+    periodMonths: params.periodMonths,
+    title: params.periodMonths === 3 ? 'TOTAL DE PRODUCTOS - VISTA GENERAL' : `TOTAL DE PRODUCTOS - ULTIMO${params.periodMonths > 1 ? 'S' : ''} ${params.periodMonths} MES${params.periodMonths > 1 ? 'ES' : ''}`,
+    dateStart: params.dateStart,
+    dateEnd: params.dateEnd,
+    periodLabel: `${dayjs(params.dateStart).format('DD MMMM YYYY')} - ${dayjs(params.dateEnd).format('DD MMMM YYYY')}`,
+    generatedAt: params.generatedAt,
+    cacheKey: params.cacheKey,
+    kpis: {
+      totalProductsSold: soldRows.length,
+      totalUnitsSold: rows.reduce((sum, row) => sum + row.salesXMonths, 0),
+      totalRevenue,
+      totalProfit: rows.reduce((sum, row) => sum + row.totalProfit, 0),
+      averageMargin: soldRows.length ? soldRows.reduce((sum, row) => sum + row.marginPercent, 0) / soldRows.length : 0,
+      activeProducts: soldRows.length,
+      noMovementProducts: rows.filter((row) => row.salesXMonths === 0).length,
+      highRotationProducts: rows.filter((row) => row.rotation >= 1 || row.averageDailySales >= 1).length,
+      criticalStockProducts: rows.filter((row) => row.salesXMonths > 0 && row.coverageDays <= 15).length,
+    },
+    weeklyUnitsSeries,
+    weeklyRevenueSeries,
+    availableLines: Array.from(new Set(rows.map((row) => row.line))).sort((a, b) => a.localeCompare(b, 'es')),
+    availableCategories: Array.from(new Set(rows.map((row) => row.category))).sort((a, b) => a.localeCompare(b, 'es')),
+    availableTypes: Array.from(new Set(rows.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es')),
+    availableBrands: Array.from(new Set(rows.map((row) => row.brand))).sort((a, b) => a.localeCompare(b, 'es')),
+    rows,
   };
 };

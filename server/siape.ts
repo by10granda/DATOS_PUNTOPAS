@@ -180,7 +180,7 @@ const fetchSales = async (baseUrl: string, token: string, dateStart: string, dat
   });
 };
 
-export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Promise<ProductRecord[]> => {
+export const loadSiapeProducts = async (dateStart: string, dateEnd: string, bucket: 'hour' | 'week' = 'hour'): Promise<ProductRecord[]> => {
   const baseUrl = process.env.SIAPE_API_BASE_URL;
   if (!baseUrl) {
     throw new Error('SIAPE_API_BASE_URL no está configurado');
@@ -194,6 +194,8 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
   ]);
 
   const salesByProduct = new Map<string, Map<string, number>>();
+  const revenueByProductBucket = new Map<string, Map<string, number>>();
+  const profitByProductBucket = new Map<string, Map<string, number>>();
   const revenueByProduct = new Map<string, number>();
   const profitByProduct = new Map<string, number>();
   const saleDateByProduct = new Map<string, string>();
@@ -203,13 +205,22 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
 
   for (const sale of sales) {
     const code = sale.codigo;
-    const month = dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('HH:00') : '00:00';
+    const saleDay = dayjs(sale.fecha_venta);
+    const month = bucket === 'week' && saleDay.isValid()
+      ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}`
+      : saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
     const productSales = salesByProduct.get(code) ?? new Map<string, number>();
+    const productRevenue = revenueByProductBucket.get(code) ?? new Map<string, number>();
+    const productProfit = profitByProductBucket.get(code) ?? new Map<string, number>();
     const quantity = numberValue(sale.cantidad_vendida);
     const saleCostWithIva = numberValue(sale.precio_costo) * 1.15;
     const salePriceWithIva = numberValue(sale.precio_venta) * 1.15;
     productSales.set(month, (productSales.get(month) ?? 0) + quantity);
+    productRevenue.set(month, (productRevenue.get(month) ?? 0) + (salePriceWithIva * quantity));
+    productProfit.set(month, (productProfit.get(month) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
     salesByProduct.set(code, productSales);
+    revenueByProductBucket.set(code, productRevenue);
+    profitByProductBucket.set(code, productProfit);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
     profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
     const currentSaleDate = saleDateByProduct.get(code);
@@ -220,7 +231,9 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
     priceByProduct.set(code, numberValue(sale.precio_venta));
   }
 
-  const months = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+  const months = bucket === 'week'
+    ? Array.from(new Set(Array.from({ length: Math.max(1, dayjs(dateEnd).diff(dayjs(dateStart), 'week') + 2) }, (_value, index) => `Sem ${dayjs(dateStart).startOf('week').add(1 + index * 7, 'day').format('DD/MM')}`)))
+    : Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
 
   return dedupeInventoryByCode(inventory).map((item) => {
     const provider = item.proveedores?.[0];
@@ -234,6 +247,8 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
     const rawProviderCostWithIva = numberValue(provider?.costo_producto_proveedor_iva ?? providerCost * 1.15);
     const providerCostWithIva = normalizeProviderCostWithIva(rawProviderCostWithIva, providerCost, publicPriceWithIva, getSaleUnitFactor(catalogItem));
     const productSales = salesByProduct.get(item.codigo) ?? new Map<string, number>();
+    const productRevenue = revenueByProductBucket.get(item.codigo) ?? new Map<string, number>();
+    const productProfit = profitByProductBucket.get(item.codigo) ?? new Map<string, number>();
 
     return {
       id: `ALMACEN PAS-${item.codigo}`,
@@ -256,7 +271,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string): Pro
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
-      monthlySales: months.map((month) => ({ month, quantity: productSales.get(month) ?? 0 })),
+      monthlySales: months.map((month) => ({ month, quantity: productSales.get(month) ?? 0, revenue: productRevenue.get(month) ?? 0, profit: productProfit.get(month) ?? 0 })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
       salesProfitWithIva: profitByProduct.get(item.codigo) ?? 0
     };

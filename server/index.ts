@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import path from 'node:path';
 import fs from 'node:fs';
 import dayjs from 'dayjs';
-import { buildDashboard } from './analytics';
+import { buildDashboard, buildProductOverview } from './analytics';
 import { loadSiapeProducts } from './siape';
 import type { Branch, PeriodMonths } from './types';
 
@@ -19,6 +19,7 @@ app.use(morgan('dev'));
 const branches: Branch[] = [{ name: 'ALMACEN PAS' }];
 
 const maxRangeMonths = 3;
+const overviewCache = new Map<string, { generatedAt: string; payload: unknown }>();
 
 const countInclusiveMonths = (dateStart: string, dateEnd: string) => {
   const start = dayjs(dateStart).startOf('month');
@@ -84,6 +85,35 @@ app.get('/api/dashboard', async (req, res) => {
     res.json(payload);
   } catch (error) {
     res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar datos desde SIAPE' });
+  }
+});
+
+const resolveOverviewRange = (months: PeriodMonths) => {
+  const end = dayjs().subtract(1, 'month').endOf('month');
+  const start = end.subtract(months - 1, 'month').startOf('month');
+  return { dateStart: start.format('YYYY-MM-DD'), dateEnd: end.format('YYYY-MM-DD') };
+};
+
+app.get('/api/product-overview', async (req, res) => {
+  const periodMonths = Math.min(3, Math.max(1, Number(req.query.periodMonths ?? 3))) as PeriodMonths;
+  const force = req.query.refresh === '1';
+  const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
+  const cacheKey = `ALMACEN PAS-${periodMonths}-${dateStart}-${dateEnd}-${dayjs().hour() >= 1 ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD')}`;
+
+  try {
+    const cached = overviewCache.get(cacheKey);
+    if (cached && !force) {
+      res.json(cached.payload);
+      return;
+    }
+    const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
+    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey, generatedAt });
+    overviewCache.clear();
+    overviewCache.set(cacheKey, { generatedAt, payload });
+    res.json(payload);
+  } catch (error) {
+    res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar vista general de productos' });
   }
 });
 

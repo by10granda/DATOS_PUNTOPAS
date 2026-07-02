@@ -1,8 +1,14 @@
 {
   "functions": {
     "api/dashboard.js": { "maxDuration": 60 },
-    "api/debug-siape.js": { "maxDuration": 60 }
+    "api/debug-siape.js": { "maxDuration": 60 },
+    "api/product-overview.js": { "maxDuration": 60 }
   },
+  "crons": [
+    { "path": "/api/product-overview?periodMonths=1&refresh=1", "schedule": "0 6 * * *" },
+    { "path": "/api/product-overview?periodMonths=2&refresh=1", "schedule": "0 6 * * *" },
+    { "path": "/api/product-overview?periodMonths=3&refresh=1", "schedule": "0 6 * * *" }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { fetchBranches, fetchDashboard } from './api';
-import type { Branch, DashboardResponse, ProductRow, PeriodMonths } from './types';
+import { fetchBranches, fetchDashboard, fetchProductOverview } from './api';
+import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
 import { exportExcel, exportPdf, money, percent } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3];
@@ -77,6 +77,11 @@ function App() {
   const [sortKey, setSortKey] = useState<keyof ProductRow>('salesXMonths');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [overviewPeriod, setOverviewPeriod] = useState<PeriodMonths>(3);
+  const [overviewData, setOverviewData] = useState<ProductOverviewResponse | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [overviewExpanded, setOverviewExpanded] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -85,6 +90,24 @@ function App() {
   useEffect(() => {
     fetchBranches().then(setBranches).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    setOverviewLoading(true);
+    fetchProductOverview(overviewPeriod)
+      .then((result) => {
+        if (!active) return;
+        setOverviewData(result);
+        setOverviewError(null);
+      })
+      .catch((err: Error) => {
+        if (active) setOverviewError(err.message);
+      })
+      .finally(() => {
+        if (active) setOverviewLoading(false);
+      });
+    return () => { active = false; };
+  }, [overviewPeriod]);
 
   useEffect(() => {
     let active = true;
@@ -248,11 +271,32 @@ function App() {
 
       <main className="mx-auto max-w-[1760px] space-y-4 px-4 py-5">
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
+        {overviewError && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{overviewError}</div>}
 
-        {dailyDetailOpen && data ? (
+        {overviewExpanded && overviewData ? (
+          <ProductOverviewExpanded data={overviewData} onClose={() => setOverviewExpanded(false)} />
+        ) : dailyDetailOpen && data ? (
           <DailyDetailPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
         ) : (
           <>
+        <ProductOverviewModule
+          data={overviewData}
+          loading={overviewLoading}
+          period={overviewPeriod}
+          onPeriodChange={setOverviewPeriod}
+          onExpand={() => setOverviewExpanded(true)}
+          onRefresh={() => {
+            setOverviewLoading(true);
+            fetchProductOverview(overviewPeriod, true)
+              .then((result) => {
+                setOverviewData(result);
+                setOverviewError(null);
+              })
+              .catch((err: Error) => setOverviewError(err.message))
+              .finally(() => setOverviewLoading(false));
+          }}
+        />
+
         <section className="premium-card rounded-[1.6rem] p-4">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
@@ -602,6 +646,224 @@ function HistoricalModal({
           <button onClick={onApply} className="rounded-xl bg-corporateBlue px-5 py-2.5 font-black text-white shadow-lg">Consultar histórico</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ProductOverviewModule({ data, loading, period, onPeriodChange, onExpand, onRefresh }: { data: ProductOverviewResponse | null; loading: boolean; period: PeriodMonths; onPeriodChange: (period: PeriodMonths) => void; onExpand: () => void; onRefresh: () => void }) {
+  return (
+    <section className="premium-card rounded-[1.8rem] border-corporateGreen/30 p-5">
+      <div className="mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div>
+          <div className="mb-2 inline-flex rounded-full border border-corporateGreen/40 bg-corporateGreen/10 px-3 py-1 text-xs font-black uppercase tracking-[0.25em] text-corporateGreen">Job diario 01:00 AM | Caché BI</div>
+          <h2 className="section-title text-2xl font-black uppercase text-corporateBlue dark:text-corporateGreen">{data?.title ?? 'TOTAL DE PRODUCTOS - VISTA GENERAL'}</h2>
+          <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-300">{data?.periodLabel ?? 'Calculando rango automático'} | ALMACEN PAS</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Datos históricos precalculados. No responde a filtros del dashboard operativo.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {periodOptions.map((option) => (
+            <button key={option} onClick={() => onPeriodChange(option)} className={`rounded-full px-4 py-2 text-sm font-black transition ${period === option ? 'bg-corporateGreen text-slate-950' : 'border border-slate-700 bg-slate-950/50 text-white hover:border-corporateGreen'}`}>
+              {option === 3 ? 'Vista General' : `Último${option > 1 ? 's' : ''} ${option} mes${option > 1 ? 'es' : ''}`}
+            </button>
+          ))}
+          <button onClick={onRefresh} className="rounded-full border border-corporateBlue/50 px-4 py-2 text-sm font-black text-corporateBlue dark:text-corporateGreen">Recalcular</button>
+        </div>
+      </div>
+
+      {loading && <div className="rounded-2xl border border-slate-700 bg-slate-950/50 p-4 text-sm font-bold text-slate-300">Procesando métricas históricas...</div>}
+
+      {data && !loading && (
+        <>
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <StatCard label="Productos Vendidos" value={data.kpis.totalProductsSold} />
+            <StatCard label="Unidades Vendidas" value={data.kpis.totalUnitsSold} accent="green" />
+            <StatCard label="Dinero Vendido" value={money(data.kpis.totalRevenue)} accent="blue" />
+            <StatCard label="Utilidad Generada" value={money(data.kpis.totalProfit)} accent="green" />
+            <StatCard label="Margen Promedio" value={percent(data.kpis.averageMargin)} accent="blue" />
+            <StatCard label="Productos Activos" value={data.kpis.activeProducts} />
+            <StatCard label="Sin Movimiento" value={data.kpis.noMovementProducts} />
+            <StatCard label="Alta Rotación" value={data.kpis.highRotationProducts} accent="green" />
+            <StatCard label="Críticos Stock" value={data.kpis.criticalStockProducts} accent="blue" />
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <button onClick={onExpand} className="text-left">
+              <ProductOverviewChart title="Ventas semanales (Unidades)" data={data.weeklyUnitsSeries} dataKey="quantity" color="#25ff00" />
+            </button>
+            <button onClick={onExpand} className="text-left">
+              <ProductOverviewChart title="Dinero vendido semanalmente" data={data.weeklyRevenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ProductOverviewChart({ title, data, dataKey, color, moneyAxis }: { title: string; data: Array<{ week: string } & Record<string, string | number>>; dataKey: string; color: string; moneyAxis?: boolean }) {
+  return (
+    <ChartCard title={title}>
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={data} margin={{ top: 10, right: 20, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.22} />
+          <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+          <YAxis tickFormatter={(value) => moneyAxis ? `$${Number(value).toFixed(0)}` : String(value)} />
+          <Tooltip formatter={(value) => moneyAxis ? money(Number(value)) : Number(value).toLocaleString('es-EC')} contentStyle={{ background: '#061a24', border: '1px solid rgba(37,255,0,0.25)', borderRadius: 16, color: '#fff' }} />
+          <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={4} dot={{ r: 4, fill: color }} activeDot={{ r: 7 }} animationDuration={900} />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
+function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewResponse; onClose: () => void }) {
+  const [search, setSearch] = useState('');
+  const [line, setLine] = useState('TODAS');
+  const [category, setCategory] = useState('TODAS');
+  const [type, setType] = useState('TODOS');
+  const [brand, setBrand] = useState('TODAS');
+  const [analysis, setAnalysis] = useState<'all' | 'lowStock' | 'overstock' | 'noSales' | 'highRotation'>('all');
+  const [sort, setSort] = useState<'smartScore' | 'rotation' | 'totalProfit' | 'valueSold' | 'marginPercent' | 'stock' | 'stockAsc' | 'coverageDays'>('smartScore');
+  const [page, setPage] = useState(1);
+
+  const searchTerm = normalizeSearch(search);
+  const filtered = data.rows.filter((row) => {
+    const searchMatch = !searchTerm || [row.code, row.description, row.brand, row.line, row.category, row.type].some((field) => normalizeSearch(field).includes(searchTerm));
+    const lineMatch = line === 'TODAS' || row.line === line;
+    const categoryMatch = category === 'TODAS' || row.category === category;
+    const typeMatch = type === 'TODOS' || row.type === type;
+    const brandMatch = brand === 'TODAS' || row.brand === brand;
+    const analysisMatch = analysis === 'all'
+      || (analysis === 'lowStock' && row.salesXMonths > 0 && row.coverageDays <= 30 && row.rotation >= 0.5)
+      || (analysis === 'overstock' && row.coverageDays >= 120 && row.stock > 0)
+      || (analysis === 'noSales' && row.salesXMonths === 0)
+      || (analysis === 'highRotation' && (row.rotation >= 1 || row.averageDailySales >= 1));
+    return searchMatch && lineMatch && categoryMatch && typeMatch && brandMatch && analysisMatch;
+  }).sort((a, b) => {
+    if (analysis === 'lowStock') return a.coverageDays - b.coverageDays || b.rotation - a.rotation;
+    if (analysis === 'overstock') return b.coverageDays - a.coverageDays || b.immobilizedCapital - a.immobilizedCapital;
+    if (analysis === 'noSales') return b.daysSinceLastSale - a.daysSinceLastSale;
+    if (analysis === 'highRotation') return b.rotation - a.rotation || b.salesXMonths - a.salesXMonths || b.valueSold - a.valueSold;
+    if (sort === 'stockAsc') return a.stock - b.stock;
+    return Number(b[sort]) - Number(a[sort]);
+  });
+  const pageSize = 18;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visibleRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const resetPage = (action: () => void) => {
+    action();
+    setPage(1);
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="premium-card rounded-[1.8rem] p-5">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.25em] text-corporateGreen">Vista Expandida</div>
+            <h2 className="section-title text-2xl font-black uppercase text-corporateBlue dark:text-corporateGreen">{data.title}</h2>
+            <p className="text-sm font-bold text-slate-500 dark:text-slate-300">{data.periodLabel} | Generado: {data.generatedAt}</p>
+          </div>
+          <button onClick={onClose} className="rounded-full bg-white px-5 py-2.5 font-black text-[#061a24] shadow-lg">Volver al dashboard</button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ProductOverviewChart title="Ventas semanales (Unidades)" data={data.weeklyUnitsSeries} dataKey="quantity" color="#25ff00" />
+        <ProductOverviewChart title="Dinero vendido semanalmente" data={data.weeklyRevenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <StatCard label="Productos Vendidos" value={data.kpis.totalProductsSold} />
+        <StatCard label="Unidades Vendidas" value={data.kpis.totalUnitsSold} accent="green" />
+        <StatCard label="Dinero Vendido" value={money(data.kpis.totalRevenue)} accent="blue" />
+        <StatCard label="Utilidad" value={money(data.kpis.totalProfit)} accent="green" />
+        <StatCard label="Críticos Stock" value={data.kpis.criticalStockProducts} accent="blue" />
+      </div>
+
+      <div className="premium-card rounded-[1.6rem] p-4">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <AnalysisButton active={analysis === 'lowStock'} label="Alta Rotación y Stock Bajo" onClick={() => resetPage(() => setAnalysis('lowStock'))} />
+          <AnalysisButton active={analysis === 'overstock'} label="Sobrestock y Pocas Ventas" onClick={() => resetPage(() => setAnalysis('overstock'))} />
+          <AnalysisButton active={analysis === 'noSales'} label="Productos Sin Ventas" onClick={() => resetPage(() => setAnalysis('noSales'))} />
+          <AnalysisButton active={analysis === 'highRotation'} label="Alta Rotación" onClick={() => resetPage(() => setAnalysis('highRotation'))} />
+          <AnalysisButton active={analysis === 'all'} label="Todos" onClick={() => resetPage(() => setAnalysis('all'))} />
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-[1.4fr_repeat(5,1fr)]">
+          <input value={search} onChange={(event) => resetPage(() => setSearch(event.target.value))} placeholder="Buscar código, descripción, marca, línea, categoría o tipo" className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-corporateGreen" />
+          <FilterSelect label="Línea" value={line} onChange={(value) => resetPage(() => setLine(value))} options={[{ value: 'TODAS', label: 'TODAS' }, ...data.availableLines.map((item) => ({ value: item, label: item }))]} />
+          <FilterSelect label="Categoría" value={category} onChange={(value) => resetPage(() => setCategory(value))} options={[{ value: 'TODAS', label: 'TODAS' }, ...data.availableCategories.map((item) => ({ value: item, label: item }))]} />
+          <FilterSelect label="Tipo" value={type} onChange={(value) => resetPage(() => setType(value))} options={[{ value: 'TODOS', label: 'TODOS' }, ...data.availableTypes.map((item) => ({ value: item, label: item }))]} />
+          <FilterSelect label="Marca" value={brand} onChange={(value) => resetPage(() => setBrand(value))} options={[{ value: 'TODAS', label: 'TODAS' }, ...data.availableBrands.map((item) => ({ value: item, label: item }))]} />
+          <FilterSelect label="Orden" value={sort} onChange={(value) => resetPage(() => setSort(value as typeof sort))} options={[
+            { value: 'smartScore', label: 'Mayor score' },
+            { value: 'rotation', label: 'Mayor rotación' },
+            { value: 'totalProfit', label: 'Mayor utilidad' },
+            { value: 'valueSold', label: 'Mayor venta' },
+            { value: 'marginPercent', label: 'Mayor margen' },
+            { value: 'stock', label: 'Mayor stock' },
+            { value: 'stockAsc', label: 'Menor stock' },
+            { value: 'coverageDays', label: 'Mayor cobertura' },
+          ]} />
+        </div>
+
+        <ProductOverviewTable rows={visibleRows} />
+        <div className="mt-4 flex items-center justify-between text-sm text-slate-400">
+          <span>{filtered.length.toLocaleString('es-EC')} productos | Página {page} de {totalPages}</span>
+          <div className="flex gap-2">
+            <button onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-full border border-slate-700 px-4 py-2 font-black">Anterior</button>
+            <button onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-full border border-slate-700 px-4 py-2 font-black">Siguiente</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AnalysisButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return <button onClick={onClick} className={`rounded-full px-4 py-2 text-sm font-black transition ${active ? 'bg-corporateGreen text-slate-950' : 'border border-slate-700 text-slate-200 hover:border-corporateGreen'}`}>{label}</button>;
+}
+
+function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
+  return (
+    <div className="mt-4 overflow-x-auto scrollbar-thin">
+      <table className="min-w-[1800px] w-full border-separate border-spacing-y-1 text-xs">
+        <thead>
+          <tr>
+            {['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock actual', 'Unidades vendidas', 'Valor vendido', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
+              <th key={label} className="whitespace-nowrap border-b border-slate-700 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-400">{label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id} className="bg-white/80 shadow-sm dark:bg-slate-800/70">
+              <td className="rounded-l-xl px-2.5 py-2 font-black text-corporateGreen">{row.code}</td>
+              <td className="max-w-[260px] truncate px-2.5 py-2 font-bold">{row.description}</td>
+              <td className="px-2.5 py-2">{row.brand}</td>
+              <td className="px-2.5 py-2">{row.line}</td>
+              <td className="px-2.5 py-2">{row.category}</td>
+              <td className="px-2.5 py-2">{row.type}</td>
+              <td className="px-2.5 py-2 font-black">{row.stock}</td>
+              <td className="px-2.5 py-2 font-black">{row.salesXMonths}</td>
+              <td className="px-2.5 py-2 font-black text-corporateGreen">{money(row.valueSold)}</td>
+              <td className="px-2.5 py-2 font-black text-emerald-300">{money(row.totalProfit)}</td>
+              <td className="px-2.5 py-2">{percent(row.marginPercent)}</td>
+              <td className="px-2.5 py-2">{row.rotation.toFixed(2)}</td>
+              <td className="px-2.5 py-2">{row.coverageDays >= 999 ? '999+' : row.coverageDays.toFixed(0)}</td>
+              <td className="px-2.5 py-2">{row.daysSinceLastSale >= 999 ? '999+' : row.daysSinceLastSale}</td>
+              <td className="px-2.5 py-2 font-black">{row.abcClass}</td>
+              <td className="px-2.5 py-2 font-black">{row.xyzClass}</td>
+              <td className="px-2.5 py-2">{row.pareto ? '80/20' : 'No'}</td>
+              <td className="px-2.5 py-2">{row.trend} ({row.trendPercent.toFixed(1)}%)</td>
+              <td className="px-2.5 py-2 font-black text-corporateGreen">{row.smartScore.toFixed(1)}</td>
+              <td className="rounded-r-xl px-2.5 py-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${badgeColor(row.inventorySignal)}`}>{row.inventoryState}</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

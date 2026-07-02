@@ -1,4 +1,4 @@
-import type { DashboardResponse, Branch } from './types';
+import type { DashboardResponse, Branch, ProductOverviewResponse } from './types';
 
 const apiUrl = (path: string) => `${path}`;
 
@@ -39,6 +39,22 @@ export async function fetchDashboard(params: {
       throw new Error(error?.message ? `${error.message} (HTTP ${response.status})` : `No se pudo cargar el dashboard (HTTP ${response.status})`);
     } catch {
       throw new Error(`No se pudo cargar el dashboard (HTTP ${response.status}): ${body.slice(0, 180)}`);
+    }
+  }
+  return response.json();
+}
+
+export async function fetchProductOverview(periodMonths: number, refresh = false): Promise<ProductOverviewResponse> {
+  const query = new URLSearchParams({ periodMonths: String(periodMonths) });
+  if (refresh) query.set('refresh', '1');
+  const response = await fetch(apiUrl(`/api/product-overview?${query.toString()}`));
+  if (!response.ok) {
+    const body = await response.text();
+    try {
+      const error = JSON.parse(body) as { message?: string };
+      throw new Error(error?.message ? `${error.message} (HTTP ${response.status})` : `No se pudo cargar Total de Productos (HTTP ${response.status})`);
+    } catch {
+      throw new Error(`No se pudo cargar Total de Productos (HTTP ${response.status}): ${body.slice(0, 180)}`);
     }
   }
   return response.json();

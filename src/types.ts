@@ -2,7 +2,7 @@ export type PeriodMonths = 1 | 2 | 3;
 
 export type Branch = { name: string };
 
-export type MonthlySale = { month: string; quantity: number };
+export type MonthlySale = { month: string; quantity: number; revenue?: number; profit?: number };
 
 export type ProductRow = {
   id: string;
@@ -73,4 +73,47 @@ export type DashboardResponse = {
   topRotationRows: ProductRow[];
   noSalesRows: ProductRow[];
   overstockRows: ProductRow[];
+};
+
+export type ProductOverviewRow = ProductRow & {
+  valueSold: number;
+  averageDailySales: number;
+  coverageDays: number;
+  daysSinceLastSale: number;
+  abcClass: 'A' | 'B' | 'C';
+  xyzClass: 'X' | 'Y' | 'Z';
+  pareto: boolean;
+  trend: 'Creciente' | 'Estable' | 'Decreciente';
+  trendPercent: number;
+  smartScore: number;
+  immobilizedCapital: number;
+};
+
+export type ProductOverviewResponse = {
+  branch: string;
+  periodMonths: PeriodMonths;
+  title: string;
+  dateStart: string;
+  dateEnd: string;
+  periodLabel: string;
+  generatedAt: string;
+  cacheKey: string;
+  kpis: {
+    totalProductsSold: number;
+    totalUnitsSold: number;
+    totalRevenue: number;
+    totalProfit: number;
+    averageMargin: number;
+    activeProducts: number;
+    noMovementProducts: number;
+    highRotationProducts: number;
+    criticalStockProducts: number;
+  };
+  weeklyUnitsSeries: { week: string; quantity: number }[];
+  weeklyRevenueSeries: { week: string; revenue: number }[];
+  availableLines: string[];
+  availableCategories: string[];
+  availableTypes: string[];
+  availableBrands: string[];
+  rows: ProductOverviewRow[];
 };
