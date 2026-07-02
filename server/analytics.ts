@@ -211,13 +211,15 @@ export const buildProductOverview = (
 ): ProductOverviewResponse => {
   const periodDays = Math.max(1, dayjs(params.dateEnd).diff(dayjs(params.dateStart), 'day') + 1);
   const baseRows = products.map((product) => buildRow(product, params.periodMonths));
-  const rowsByRevenue = [...baseRows].sort((a, b) => b.publicCostWithIva * b.salesXMonths - a.publicCostWithIva * a.salesXMonths);
-  const totalRevenue = rowsByRevenue.reduce((sum, row) => sum + row.publicCostWithIva * row.salesXMonths, 0);
+  const productByCode = new Map(products.map((product) => [product.code, product]));
+  const revenueForRow = (row: ProductRow) => productByCode.get(row.code)?.salesRevenueWithIva ?? row.publicCostWithIva * row.salesXMonths;
+  const rowsByRevenue = [...baseRows].sort((a, b) => revenueForRow(b) - revenueForRow(a));
+  const totalRevenue = rowsByRevenue.reduce((sum, row) => sum + revenueForRow(row), 0);
   let cumulativeRevenue = 0;
   const abcByCode = new Map<string, { abcClass: 'A' | 'B' | 'C'; pareto: boolean }>();
 
   rowsByRevenue.forEach((row) => {
-    cumulativeRevenue += row.publicCostWithIva * row.salesXMonths;
+    cumulativeRevenue += revenueForRow(row);
     const cumulativePercent = totalRevenue > 0 ? cumulativeRevenue / totalRevenue : 0;
     abcByCode.set(row.code, { abcClass: cumulativePercent <= 0.8 ? 'A' : cumulativePercent <= 0.95 ? 'B' : 'C', pareto: cumulativePercent <= 0.8 });
   });
@@ -234,7 +236,7 @@ export const buildProductOverview = (
     const averageDailySales = row.salesXMonths / periodDays;
     const coverageDays = averageDailySales > 0 ? row.stock / averageDailySales : 999;
     const daysSinceLastSale = row.saleDate ? Math.max(0, dayjs(params.dateEnd).diff(dayjs(row.saleDate), 'day')) : 999;
-    const valueSold = row.publicCostWithIva * row.salesXMonths;
+    const valueSold = revenueForRow(row);
     const providerPurchaseValue = row.costProvider * row.salesXMonths;
     const providerPurchaseValueWithIva = row.costWithIva * row.salesXMonths;
     const abc = abcByCode.get(row.code) ?? { abcClass: 'C' as const, pareto: false };
