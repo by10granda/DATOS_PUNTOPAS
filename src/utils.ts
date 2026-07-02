@@ -12,6 +12,7 @@ export const exportExcel = (rows: ProductRow[], fileName: string) => {
   const data = rows.map((row) => ({
     Código: row.code,
     Descripción: row.description,
+    Proveedor: row.provider,
     Marca: row.brand,
     Línea: row.line,
     Categoría: row.category,
@@ -33,7 +34,6 @@ export const exportExcel = (rows: ProductRow[], fileName: string) => {
     'Precio PVP': row.pricePvp ?? 'NO CONSTA',
     'Margen %': row.marginPercent,
     'Margen Actual %': row.currentMarginPercent,
-    Proveedor: row.provider,
     Rotación: row.rotation,
     'Estado Inventario': row.inventoryState,
   }));
@@ -92,6 +92,8 @@ export const exportOverviewExcel = (rows: ProductOverviewRow[], fileName: string
     ...Object.fromEntries(warehouseColumns.map((warehouse) => [warehouse, row.warehouseStocks?.[warehouse] ?? 0])),
     'Unidades Vendidas': row.salesXMonths,
     'Valor Vendido': row.valueSold,
+    'Valor Comprado Proveedor': row.providerPurchaseValue,
+    'Valor Comprado Proveedor + IVA': row.providerPurchaseValueWithIva,
     Utilidad: row.totalProfit,
     'Margen %': row.marginPercent,
     Rotación: row.rotation,
@@ -127,11 +129,12 @@ export const exportOverviewPdf = (rows: ProductOverviewRow[], title: string) => 
     headStyles: { fillColor: [6, 26, 36], textColor: [37, 255, 0], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 247, 251] },
     head: [[
-      'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades', 'Valor Vendido', 'Utilidad', 'Margen', 'Rotación', 'Cobertura', 'Días Sin Venta', 'ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'
+      'Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades', 'Valor Vendido', 'Valor Comprado', 'Valor Comprado + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura', 'Días Sin Venta', 'ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'
     ]],
     body: rows.map((row) => [
       row.code,
       row.description,
+      row.provider,
       row.brand,
       row.line,
       row.category,
@@ -140,6 +143,8 @@ export const exportOverviewPdf = (rows: ProductOverviewRow[], title: string) => 
       ...warehouseColumns.map((warehouse) => row.warehouseStocks?.[warehouse] ?? 0),
       row.salesXMonths,
       row.valueSold.toFixed(2),
+      row.providerPurchaseValue.toFixed(2),
+      row.providerPurchaseValueWithIva.toFixed(2),
       row.totalProfit.toFixed(2),
       row.marginPercent.toFixed(1),
       row.rotation.toFixed(2),

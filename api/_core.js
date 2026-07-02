@@ -353,8 +353,10 @@ export const buildProductOverview = (products, params) => {
     const coverageDays = averageDailySales > 0 ? row.stock / averageDailySales : 999;
     const daysSinceLastSale = row.saleDate ? Math.max(0, dayjs(params.dateEnd).diff(dayjs(row.saleDate), 'day')) : 999;
     const valueSold = row.publicCostWithIva * row.salesXMonths;
+    const providerPurchaseValue = row.costProvider * row.salesXMonths;
+    const providerPurchaseValueWithIva = row.costWithIva * row.salesXMonths;
     const abc = abcByCode.get(row.code) ?? { abcClass: 'C', pareto: false };
-    return { ...row, valueSold, averageDailySales, coverageDays, daysSinceLastSale, abcClass: abc.abcClass, xyzClass: coefficientVariation <= 0.35 ? 'X' : coefficientVariation <= 0.8 ? 'Y' : 'Z', pareto: abc.pareto, trend: trendSlope > 0.2 ? 'Creciente' : trendSlope < -0.2 ? 'Decreciente' : 'Estable', trendPercent, smartScore: 0, immobilizedCapital: row.stock * row.costWithIva };
+    return { ...row, valueSold, providerPurchaseValue, providerPurchaseValueWithIva, averageDailySales, coverageDays, daysSinceLastSale, abcClass: abc.abcClass, xyzClass: coefficientVariation <= 0.35 ? 'X' : coefficientVariation <= 0.8 ? 'Y' : 'Z', pareto: abc.pareto, trend: trendSlope > 0.2 ? 'Creciente' : trendSlope < -0.2 ? 'Decreciente' : 'Estable', trendPercent, smartScore: 0, immobilizedCapital: row.stock * row.costWithIva };
   });
 
   const maxRotation = Math.max(...enrichedRows.map((row) => row.rotation), 1);
