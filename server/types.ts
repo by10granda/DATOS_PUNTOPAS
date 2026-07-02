@@ -118,6 +118,7 @@ export type DashboardResponse = {
 
 export type ProductOverviewRow = ProductRow & {
   valueSold: number;
+  soldPrice: number;
   providerPurchaseValue: number;
   providerPurchaseValueWithIva: number;
   averageDailySales: number;

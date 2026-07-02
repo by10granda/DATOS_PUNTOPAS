@@ -91,6 +91,7 @@ export const exportOverviewExcel = (rows: ProductOverviewRow[], fileName: string
     'Stock Total': row.stockTotal,
     ...Object.fromEntries(warehouseColumns.map((warehouse) => [warehouse, row.warehouseStocks?.[warehouse] ?? 0])),
     'Unidades Vendidas': row.salesXMonths,
+    'Precio Vendido': row.soldPrice || 'NO CONSTA',
     'Valor Vendido': row.valueSold,
     'Valor Comprado Proveedor': row.providerPurchaseValue,
     'Valor Comprado Proveedor + IVA': row.providerPurchaseValueWithIva,
@@ -129,7 +130,7 @@ export const exportOverviewPdf = (rows: ProductOverviewRow[], title: string) => 
     headStyles: { fillColor: [6, 26, 36], textColor: [37, 255, 0], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 247, 251] },
     head: [[
-      'Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades', 'Valor Vendido', 'Valor Comprado', 'Valor Comprado + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura', 'Días Sin Venta', 'ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'
+      'Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades', 'Precio Vendido', 'Valor Vendido', 'Valor Comprado', 'Valor Comprado + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura', 'Días Sin Venta', 'ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'
     ]],
     body: rows.map((row) => [
       row.code,
@@ -142,6 +143,7 @@ export const exportOverviewPdf = (rows: ProductOverviewRow[], title: string) => 
       row.stockTotal,
       ...warehouseColumns.map((warehouse) => row.warehouseStocks?.[warehouse] ?? 0),
       row.salesXMonths,
+      row.soldPrice ? row.soldPrice.toFixed(2) : 'NO CONSTA',
       row.valueSold.toFixed(2),
       row.providerPurchaseValue.toFixed(2),
       row.providerPurchaseValueWithIva.toFixed(2),

@@ -237,6 +237,7 @@ export const buildProductOverview = (
     const coverageDays = averageDailySales > 0 ? row.stock / averageDailySales : 999;
     const daysSinceLastSale = row.saleDate ? Math.max(0, dayjs(params.dateEnd).diff(dayjs(row.saleDate), 'day')) : 999;
     const valueSold = revenueForRow(row);
+    const soldPrice = row.salesXMonths > 0 ? valueSold / row.salesXMonths / 1.15 : 0;
     const providerPurchaseValue = row.costProvider * row.salesXMonths;
     const providerPurchaseValueWithIva = row.costWithIva * row.salesXMonths;
     const abc = abcByCode.get(row.code) ?? { abcClass: 'C' as const, pareto: false };
@@ -244,6 +245,7 @@ export const buildProductOverview = (
     return {
       ...row,
       valueSold,
+      soldPrice,
       providerPurchaseValue,
       providerPurchaseValueWithIva,
       averageDailySales,

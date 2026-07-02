@@ -877,7 +877,7 @@ function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
       <table className="min-w-[1800px] w-full border-separate border-spacing-y-1 text-xs">
         <thead>
           <tr>
-            {['Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades vendidas', 'Valor vendido', 'Valor comprado proveedor', 'Valor comprado proveedor + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
+            {['Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades vendidas', 'Precio vendido', 'Valor vendido', 'Valor comprado proveedor', 'Valor comprado proveedor + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
               <th key={label} className="whitespace-nowrap border-b border-slate-700 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-400">{label}</th>
             ))}
           </tr>
@@ -895,6 +895,7 @@ function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
               <td className="px-2.5 py-2 font-black">{row.stockTotal}</td>
               {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
               <td className="px-2.5 py-2 font-black">{row.salesXMonths}</td>
+              <td className="px-2.5 py-2 font-black">{row.soldPrice > 0 ? money(row.soldPrice) : 'NO CONSTA'}</td>
               <td className="px-2.5 py-2 font-black text-corporateGreen">{money(row.valueSold)}</td>
               <td className="px-2.5 py-2 font-black">{money(row.providerPurchaseValue)}</td>
               <td className="px-2.5 py-2 font-black">{money(row.providerPurchaseValueWithIva)}</td>
