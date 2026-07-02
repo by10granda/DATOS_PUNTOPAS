@@ -9,6 +9,13 @@ const badgeColor = (signal: ProductRow['inventorySignal']) =>
   signal === 'Normal' ? 'bg-emerald-100 text-emerald-800' : signal === 'Atención' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
 
 const chartColors = ['#ff0000', '#102d84', '#25ff00', '#7c3aed'];
+const overviewAnalysisLabels = {
+  all: 'Todos',
+  lowStock: 'Alta Rotación y Stock Bajo',
+  overstock: 'Sobrestock y Pocas Ventas',
+  noSales: 'Productos Sin Ventas',
+  highRotation: 'Alta Rotación',
+} as const;
 
 type SearchSuggestion = {
   kind: 'Producto' | 'Código' | 'Marca' | 'Línea' | 'Categoría' | 'Tipo';
@@ -778,6 +785,8 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
   const pageSize = 18;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visibleRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const activeAnalysisLabel = overviewAnalysisLabels[analysis];
+  const exportBaseName = `${data.title.toLowerCase().replace(/\s+/g, '-')}-${activeAnalysisLabel.toLowerCase().replace(/\s+/g, '-')}`;
 
   const resetPage = (action: () => void) => {
     action();
@@ -821,8 +830,8 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
             <AnalysisButton active={analysis === 'all'} label="Todos" onClick={() => resetPage(() => setAnalysis('all'))} />
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => exportOverviewExcel(filtered, `${data.title.toLowerCase().replace(/\s+/g, '-')}-tabla-bi`)} className="rounded-full bg-corporateBlue px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
-            <button onClick={() => exportOverviewPdf(filtered, `${data.title} - Tabla BI`)} className="rounded-full bg-corporateRed px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
+            <button onClick={() => exportOverviewExcel(filtered, exportBaseName)} className="rounded-full bg-corporateBlue px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
+            <button onClick={() => exportOverviewPdf(filtered, `${data.title} - ${activeAnalysisLabel}`)} className="rounded-full bg-corporateRed px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
           </div>
         </div>
 
