@@ -4,6 +4,10 @@ import type { DashboardResponse, PeriodMonths, ProductOverviewResponse, ProductO
 export const normalizeText = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
 const dedupeProductsByCode = (products: ProductRecord[]) => Array.from(new Map(products.map((product) => [product.code, product])).values());
+const averageValidMargins = (rows: ProductRow[]) => {
+  const margins = rows.map((row) => row.marginPercent).filter((margin) => Number.isFinite(margin));
+  return margins.length ? margins.reduce((sum, margin) => sum + margin, 0) / margins.length : 0;
+};
 
 export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): ProductRow => {
   const selectedSales = product.monthlySales;
@@ -125,7 +129,8 @@ export const buildDashboard = (
   const highRotation = rows.filter((row) => row.salesXMonths > averageGeneralSales).length;
   const noSales = rows.filter((row) => row.salesXMonths === 0).length;
   const overstock = rows.filter((row) => row.stock > row.averageMonthlySales * 3).length;
-  const averageMargin = rows.length ? rows.reduce((sum, row) => sum + row.marginPercent, 0) / rows.length : 0;
+  const soldRows = rows.filter((row) => row.salesXMonths > 0);
+  const averageMargin = averageValidMargins(soldRows);
 
   const donutSeries = monthLabels.map((month) => ({
     name: month,
@@ -191,10 +196,6 @@ export const buildDashboard = (
 };
 
 const safeDivide = (value: number, max: number) => max > 0 ? value / max : 0;
-const averageValidMargins = (rows: ProductRow[]) => {
-  const margins = rows.map((row) => row.marginPercent).filter((margin) => Number.isFinite(margin));
-  return margins.length ? margins.reduce((sum, margin) => sum + margin, 0) / margins.length : 0;
-};
 const slope = (values: number[]) => {
   const n = values.length;
   if (n < 2) return 0;

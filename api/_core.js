@@ -5,6 +5,10 @@ export const branches = [{ name: 'ALMACEN PAS' }];
 const numberValue = (value) => Number(value ?? 0) || 0;
 const textValue = (value, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
 const normalizeText = (value) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+const averageValidMargins = (rows) => {
+  const margins = rows.map((row) => row.marginPercent).filter((margin) => Number.isFinite(margin));
+  return margins.length ? margins.reduce((sum, margin) => sum + margin, 0) / margins.length : 0;
+};
 
 export const buildUrl = (baseUrl, path) => {
   const normalizedBaseUrl = baseUrl.replace(/^\/+/, '').match(/^https?:\/\//)
@@ -284,7 +288,8 @@ export const buildDashboard = (products, params) => {
   const totalStock = rows.reduce((sum, row) => sum + row.stock, 0);
   const totalProfit = rows.reduce((sum, row) => sum + row.totalProfit, 0);
   const averageGeneralSales = rows.length ? rows.reduce((acc, row) => acc + row.salesXMonths, 0) / rows.length : 0;
-  const averageMargin = rows.length ? rows.reduce((sum, row) => sum + row.marginPercent, 0) / rows.length : 0;
+  const soldRows = rows.filter((row) => row.salesXMonths > 0);
+  const averageMargin = averageValidMargins(soldRows);
   const donutSeries = monthLabels.map((month) => ({ name: month, value: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === month)?.quantity ?? 0), 0) })).filter((item) => item.value > 0);
   const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
 
@@ -317,10 +322,6 @@ export const buildDashboard = (products, params) => {
 };
 
 const safeDivide = (value, max) => max > 0 ? value / max : 0;
-const averageValidMargins = (rows) => {
-  const margins = rows.map((row) => row.marginPercent).filter((margin) => Number.isFinite(margin));
-  return margins.length ? margins.reduce((sum, margin) => sum + margin, 0) / margins.length : 0;
-};
 const slope = (values) => {
   const n = values.length;
   if (n < 2) return 0;
