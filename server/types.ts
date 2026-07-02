@@ -35,6 +35,7 @@ export type ProductRecord = {
   monthlySales: MonthlySale[];
   salesRevenueWithIva?: number;
   salesProfitWithIva?: number;
+  salesAverageMarginPercent?: number;
 };
 
 export type ProductRow = {

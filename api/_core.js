@@ -131,10 +131,10 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
   const revenueByProductBucket = new Map();
   const profitByProductBucket = new Map();
   const revenueByProduct = new Map();
-  const profitByProduct = new Map();
   const saleDateByProduct = new Map();
   const costByProduct = new Map();
   const priceByProduct = new Map();
+  const salePricesWithIvaByProduct = new Map();
   const catalogByProduct = new Map(catalog.map((item) => [item.codigo, item]));
 
   for (const sale of sales) {
@@ -154,7 +154,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     revenueByProductBucket.set(code, productRevenue);
     profitByProductBucket.set(code, productProfit);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
-    profitByProduct.set(code, (profitByProduct.get(code) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
+    salePricesWithIvaByProduct.set(code, [...(salePricesWithIvaByProduct.get(code) ?? []), { priceWithIva: salePriceWithIva, quantity }]);
     const currentSaleDate = saleDateByProduct.get(code);
     if (!currentSaleDate || dayjs(sale.fecha_venta).isAfter(dayjs(currentSaleDate))) {
       saleDateByProduct.set(code, dayjs(sale.fecha_venta).isValid() ? dayjs(sale.fecha_venta).format('YYYY-MM-DD HH:mm:ss') : '');
@@ -181,6 +181,10 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     const productSales = salesByProduct.get(item.codigo) ?? new Map();
     const productRevenue = revenueByProductBucket.get(item.codigo) ?? new Map();
     const productProfit = profitByProductBucket.get(item.codigo) ?? new Map();
+    const salePrices = salePricesWithIvaByProduct.get(item.codigo) ?? [];
+    const soldQuantity = salePrices.reduce((sum, sale) => sum + sale.quantity, 0);
+    const salesProfitWithProviderCost = salePrices.reduce((sum, sale) => sum + ((sale.priceWithIva - providerCostWithIva) * sale.quantity), 0);
+    const salesAverageMarginPercent = soldQuantity > 0 ? salePrices.reduce((sum, sale) => sum + (sale.priceWithIva > 0 ? ((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity : 0), 0) / soldQuantity : undefined;
 
     return {
       id: `ALMACEN PAS-${item.codigo}`,
@@ -205,7 +209,8 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
       monthlySales: hours.map((hour) => ({ month: hour, quantity: productSales.get(hour) ?? 0, revenue: productRevenue.get(hour) ?? 0, profit: productProfit.get(hour) ?? 0 })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
-      salesProfitWithIva: profitByProduct.get(item.codigo) ?? 0
+      salesProfitWithIva: salesProfitWithProviderCost,
+      salesAverageMarginPercent
     };
   });
 };
@@ -223,7 +228,7 @@ const buildRow = (product) => {
   const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
   const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;
   const marginBase = product.salesRevenueWithIva && product.salesRevenueWithIva > 0 ? product.salesRevenueWithIva : publicCostWithIva;
-  const marginPercent = marginBase > 0 ? ((product.salesProfitWithIva ?? catalogUnitProfit) / marginBase) * 100 : 0;
+  const marginPercent = product.salesAverageMarginPercent ?? (marginBase > 0 ? ((product.salesProfitWithIva ?? catalogUnitProfit) / marginBase) * 100 : 0);
   const currentMarginPercent = currentPriceWithIva > 0 ? ((currentPriceWithIva - costWithIva) / currentPriceWithIva) * 100 : 0;
   const estimatedDaysInventory = averageMonthlySales > 0 ? Math.round((product.stock / averageMonthlySales) * 30) : 999;
   const inventoryState = salesXMonths === 0 ? 'Sin ventas' : rotation > 1.25 ? 'Alta rotacion' : product.stock > averageMonthlySales * 3 ? 'Sobrestock' : 'Normal';

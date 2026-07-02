@@ -38,6 +38,7 @@ export type ProductRow = {
   averageMonthlySales: number;
   estimatedDaysInventory: number;
   monthlySales: MonthlySale[];
+  salesAverageMarginPercent?: number;
 };
 
 export type DashboardResponse = {
