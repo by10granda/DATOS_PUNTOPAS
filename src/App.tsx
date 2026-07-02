@@ -658,18 +658,12 @@ function HistoricalModal({
 }
 
 function ProductOverviewModule({ data, loading, period, onPeriodChange, onExpand, onRefresh }: { data: ProductOverviewResponse | null; loading: boolean; period: PeriodMonths; onPeriodChange: (period: PeriodMonths) => void; onExpand: () => void; onRefresh: () => void }) {
-  const [chartMode, setChartMode] = useState<'week' | 'month'>('week');
-  const unitsSeries = getOverviewChartSeries(data?.weeklyUnitsSeries ?? [], 'quantity', chartMode);
-  const revenueSeries = getOverviewChartSeries(data?.weeklyRevenueSeries ?? [], 'revenue', chartMode);
-
   return (
-    <section className="premium-card rounded-[1.8rem] border-corporateGreen/30 p-5">
-      <div className="mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+    <section className="premium-card rounded-[1.5rem] border-corporateGreen/25 p-4">
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <div className="mb-2 inline-flex rounded-full border border-corporateGreen/40 bg-corporateGreen/10 px-3 py-1 text-xs font-black uppercase tracking-[0.25em] text-corporateGreen">Job diario 01:00 AM | Caché BI</div>
-          <h2 className="section-title text-2xl font-black uppercase text-corporateBlue dark:text-corporateGreen">{data?.title ?? 'TOTAL DE PRODUCTOS - VISTA GENERAL'}</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-300">{data?.periodLabel ?? 'Calculando rango automático'} | ALMACEN PAS</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Datos históricos precalculados. No responde a filtros del dashboard operativo.</p>
+          <div className="text-xs font-black uppercase tracking-[0.25em] text-corporateGreen">Total de productos</div>
+          <div className="mt-1 text-sm font-bold text-slate-400">Abra la tabla BI histórica directamente. {data?.periodLabel ? `Periodo cargado: ${data.periodLabel}` : ''}</div>
         </div>
         <div className="flex flex-wrap gap-2">
           {periodOptions.map((option) => (
@@ -677,37 +671,11 @@ function ProductOverviewModule({ data, loading, period, onPeriodChange, onExpand
               {option === 3 ? 'Vista General' : `Último${option > 1 ? 's' : ''} ${option} mes${option > 1 ? 'es' : ''}`}
             </button>
           ))}
+          <button onClick={onExpand} disabled={!data || loading} className="rounded-full bg-corporateBlue px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">Abrir tabla BI</button>
           <button onClick={onRefresh} className="rounded-full border border-corporateBlue/50 px-4 py-2 text-sm font-black text-corporateBlue dark:text-corporateGreen">Recalcular</button>
         </div>
       </div>
-
-      {loading && <div className="rounded-2xl border border-slate-700 bg-slate-950/50 p-4 text-sm font-bold text-slate-300">Procesando métricas históricas...</div>}
-
-      {data && !loading && (
-        <>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <StatCard label="Productos Vendidos" value={data.kpis.totalProductsSold} />
-            <StatCard label="Unidades Vendidas" value={data.kpis.totalUnitsSold} accent="green" />
-            <StatCard label="Dinero Vendido" value={money(data.kpis.totalRevenue)} accent="blue" />
-            <StatCard label="Utilidad Generada" value={money(data.kpis.totalProfit)} accent="green" />
-            <StatCard label="Margen Promedio" value={percent(data.kpis.averageMargin)} accent="blue" />
-            <StatCard label="Productos Activos" value={data.kpis.activeProducts} />
-            <StatCard label="Sin Movimiento" value={data.kpis.noMovementProducts} />
-            <StatCard label="Alta Rotación" value={data.kpis.highRotationProducts} accent="green" />
-            <StatCard label="Críticos Stock" value={data.kpis.criticalStockProducts} accent="blue" />
-          </div>
-
-          <div className="mt-5 grid gap-4 xl:grid-cols-2">
-            <button onClick={onExpand} className="text-left">
-              <ProductOverviewChart title={chartMode === 'week' ? 'Ventas semanales (Unidades)' : 'Ventas mensuales (Unidades)'} data={unitsSeries} dataKey="quantity" color="#25ff00" />
-            </button>
-            <button onClick={onExpand} className="text-left">
-              <ProductOverviewChart title={chartMode === 'week' ? 'Dinero vendido semanalmente' : 'Dinero vendido mensualmente'} data={revenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
-            </button>
-          </div>
-          <ChartModeSwitch mode={chartMode} onChange={setChartMode} />
-        </>
-      )}
+      {loading && <div className="mt-3 rounded-xl border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm font-bold text-slate-300">Procesando métricas históricas...</div>}
     </section>
   );
 }
