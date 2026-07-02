@@ -651,12 +651,9 @@ function HistoricalModal({
 }
 
 function ProductOverviewModule({ data, loading, period, onPeriodChange, onExpand, onRefresh }: { data: ProductOverviewResponse | null; loading: boolean; period: PeriodMonths; onPeriodChange: (period: PeriodMonths) => void; onExpand: () => void; onRefresh: () => void }) {
-  const [chartMonth, setChartMonth] = useState('TODOS');
-  const [chartWeek, setChartWeek] = useState('TODAS');
-  const months = Array.from(new Set(data?.weeklyUnitsSeries.map((item) => item.monthLabel).filter(Boolean) ?? [])) as string[];
-  const weeks = (data?.weeklyUnitsSeries ?? []).filter((item) => chartMonth === 'TODOS' || item.monthLabel === chartMonth);
-  const filteredUnits = (data?.weeklyUnitsSeries ?? []).filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
-  const filteredRevenue = (data?.weeklyRevenueSeries ?? []).filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
+  const [chartMode, setChartMode] = useState<'week' | 'month'>('week');
+  const unitsSeries = getOverviewChartSeries(data?.weeklyUnitsSeries ?? [], 'quantity', chartMode);
+  const revenueSeries = getOverviewChartSeries(data?.weeklyRevenueSeries ?? [], 'revenue', chartMode);
 
   return (
     <section className="premium-card rounded-[1.8rem] border-corporateGreen/30 p-5">
@@ -695,31 +692,35 @@ function ProductOverviewModule({ data, loading, period, onPeriodChange, onExpand
 
           <div className="mt-5 grid gap-4 xl:grid-cols-2">
             <button onClick={onExpand} className="text-left">
-              <ProductOverviewChart title="Ventas semanales (Unidades)" data={filteredUnits} dataKey="quantity" color="#25ff00" />
+              <ProductOverviewChart title={chartMode === 'week' ? 'Ventas semanales (Unidades)' : 'Ventas mensuales (Unidades)'} data={unitsSeries} dataKey="quantity" color="#25ff00" />
             </button>
             <button onClick={onExpand} className="text-left">
-              <ProductOverviewChart title="Dinero vendido semanalmente" data={filteredRevenue} dataKey="revenue" color="#38bdf8" moneyAxis />
+              <ProductOverviewChart title={chartMode === 'week' ? 'Dinero vendido semanalmente' : 'Dinero vendido mensualmente'} data={revenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
             </button>
           </div>
-          <ChartFilterBar months={months} weeks={weeks.map((item) => item.week)} month={chartMonth} week={chartWeek} onMonthChange={(value) => { setChartMonth(value); setChartWeek('TODAS'); }} onWeekChange={setChartWeek} />
+          <ChartModeSwitch mode={chartMode} onChange={setChartMode} />
         </>
       )}
     </section>
   );
 }
 
-function ChartFilterBar({ months, weeks, month, week, onMonthChange, onWeekChange }: { months: string[]; weeks: string[]; month: string; week: string; onMonthChange: (value: string) => void; onWeekChange: (value: string) => void }) {
+function getOverviewChartSeries<T extends 'quantity' | 'revenue'>(series: Array<{ week: string; monthLabel?: string } & Record<T, number>>, key: T, mode: 'week' | 'month') {
+  if (mode === 'week') return series.map((item) => ({ week: item.week, [key]: item[key] })) as Array<{ week: string } & Record<T, number>>;
+  const byMonth = new Map<string, number>();
+  for (const item of series) {
+    const month = item.monthLabel ?? item.week;
+    byMonth.set(month, (byMonth.get(month) ?? 0) + item[key]);
+  }
+  return Array.from(byMonth.entries()).map(([week, value]) => ({ week, [key]: value })) as Array<{ week: string } & Record<T, number>>;
+}
+
+function ChartModeSwitch({ mode, onChange }: { mode: 'week' | 'month'; onChange: (mode: 'week' | 'month') => void }) {
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-700 bg-slate-950/45 p-3">
-      <div className="text-xs font-black uppercase tracking-[0.2em] text-corporateGreen">Filtrar gráficas</div>
-      <select value={month} onChange={(event) => onMonthChange(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-black text-white outline-none focus:border-corporateGreen">
-        <option value="TODOS">Todos los meses</option>
-        {months.map((item) => <option key={item} value={item}>{item}</option>)}
-      </select>
-      <select value={week} onChange={(event) => onWeekChange(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-black text-white outline-none focus:border-corporateGreen">
-        <option value="TODAS">Todas las semanas</option>
-        {weeks.map((item) => <option key={item} value={item}>{item}</option>)}
-      </select>
+      <div className="text-xs font-black uppercase tracking-[0.2em] text-corporateGreen">Ver gráficas por</div>
+      <button onClick={() => onChange('week')} className={`rounded-xl px-4 py-2 text-sm font-black transition ${mode === 'week' ? 'bg-corporateGreen text-slate-950' : 'border border-slate-700 text-white hover:border-corporateGreen'}`}>Semanas</button>
+      <button onClick={() => onChange('month')} className={`rounded-xl px-4 py-2 text-sm font-black transition ${mode === 'month' ? 'bg-corporateGreen text-slate-950' : 'border border-slate-700 text-white hover:border-corporateGreen'}`}>Meses</button>
     </div>
   );
 }
@@ -749,12 +750,9 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
   const [analysis, setAnalysis] = useState<'all' | 'lowStock' | 'overstock' | 'noSales' | 'highRotation'>('all');
   const [sort, setSort] = useState<'smartScore' | 'rotation' | 'totalProfit' | 'valueSold' | 'marginPercent' | 'stock' | 'stockAsc' | 'coverageDays'>('smartScore');
   const [page, setPage] = useState(1);
-  const [chartMonth, setChartMonth] = useState('TODOS');
-  const [chartWeek, setChartWeek] = useState('TODAS');
-  const chartMonths = Array.from(new Set(data.weeklyUnitsSeries.map((item) => item.monthLabel).filter(Boolean))) as string[];
-  const chartWeeks = data.weeklyUnitsSeries.filter((item) => chartMonth === 'TODOS' || item.monthLabel === chartMonth).map((item) => item.week);
-  const filteredUnitsSeries = data.weeklyUnitsSeries.filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
-  const filteredRevenueSeries = data.weeklyRevenueSeries.filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
+  const [chartMode, setChartMode] = useState<'week' | 'month'>('week');
+  const unitsSeries = getOverviewChartSeries(data.weeklyUnitsSeries, 'quantity', chartMode);
+  const revenueSeries = getOverviewChartSeries(data.weeklyRevenueSeries, 'revenue', chartMode);
 
   const searchTerm = normalizeSearch(search);
   const filtered = data.rows.filter((row) => {
@@ -800,10 +798,10 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <ProductOverviewChart title="Ventas semanales (Unidades)" data={filteredUnitsSeries} dataKey="quantity" color="#25ff00" />
-        <ProductOverviewChart title="Dinero vendido semanalmente" data={filteredRevenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
+        <ProductOverviewChart title={chartMode === 'week' ? 'Ventas semanales (Unidades)' : 'Ventas mensuales (Unidades)'} data={unitsSeries} dataKey="quantity" color="#25ff00" />
+        <ProductOverviewChart title={chartMode === 'week' ? 'Dinero vendido semanalmente' : 'Dinero vendido mensualmente'} data={revenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
       </div>
-      <ChartFilterBar months={chartMonths} weeks={chartWeeks} month={chartMonth} week={chartWeek} onMonthChange={(value) => { setChartMonth(value); setChartWeek('TODAS'); }} onWeekChange={setChartWeek} />
+      <ChartModeSwitch mode={chartMode} onChange={setChartMode} />
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Productos Vendidos" value={data.kpis.totalProductsSold} />
