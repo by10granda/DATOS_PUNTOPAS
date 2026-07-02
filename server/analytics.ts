@@ -272,8 +272,14 @@ export const buildProductOverview = (
   }).sort((a, b) => b.smartScore - a.smartScore);
 
   const weeklyLabels = Array.from(new Set(products.flatMap((product) => product.monthlySales.map((sale) => sale.month))));
-  const weeklyUnitsSeries = weeklyLabels.map((week) => ({ week, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.quantity ?? 0), 0) }));
-  const weeklyRevenueSeries = weeklyLabels.map((week) => ({ week, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.revenue ?? 0), 0) }));
+  const weeklyUnitsSeries = weeklyLabels.map((week) => {
+    const sale = products.flatMap((product) => product.monthlySales).find((item) => item.month === week);
+    return { week, weekStart: sale?.weekStart, monthLabel: sale?.monthLabel, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((item) => item.month === week)?.quantity ?? 0), 0) };
+  });
+  const weeklyRevenueSeries = weeklyLabels.map((week) => {
+    const sale = products.flatMap((product) => product.monthlySales).find((item) => item.month === week);
+    return { week, weekStart: sale?.weekStart, monthLabel: sale?.monthLabel, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((item) => item.month === week)?.revenue ?? 0), 0) };
+  });
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
   const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks)))).sort((a, b) => a.localeCompare(b, 'es'));
 

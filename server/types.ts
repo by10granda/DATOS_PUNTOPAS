@@ -9,6 +9,8 @@ export type MonthlySale = {
   quantity: number;
   revenue?: number;
   profit?: number;
+  weekStart?: string;
+  monthLabel?: string;
 };
 
 export type ProductRecord = {
@@ -148,8 +150,8 @@ export type ProductOverviewResponse = {
     highRotationProducts: number;
     criticalStockProducts: number;
   };
-  weeklyUnitsSeries: { week: string; quantity: number }[];
-  weeklyRevenueSeries: { week: string; revenue: number }[];
+  weeklyUnitsSeries: { week: string; quantity: number; weekStart?: string; monthLabel?: string }[];
+  weeklyRevenueSeries: { week: string; revenue: number; weekStart?: string; monthLabel?: string }[];
   availableWarehouses: string[];
   availableLines: string[];
   availableCategories: string[];

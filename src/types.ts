@@ -2,7 +2,7 @@ export type PeriodMonths = 1 | 2 | 3;
 
 export type Branch = { name: string };
 
-export type MonthlySale = { month: string; quantity: number; revenue?: number; profit?: number };
+export type MonthlySale = { month: string; quantity: number; revenue?: number; profit?: number; weekStart?: string; monthLabel?: string };
 
 export type ProductRow = {
   id: string;
@@ -113,8 +113,8 @@ export type ProductOverviewResponse = {
     highRotationProducts: number;
     criticalStockProducts: number;
   };
-  weeklyUnitsSeries: { week: string; quantity: number }[];
-  weeklyRevenueSeries: { week: string; revenue: number }[];
+  weeklyUnitsSeries: { week: string; quantity: number; weekStart?: string; monthLabel?: string }[];
+  weeklyRevenueSeries: { week: string; revenue: number; weekStart?: string; monthLabel?: string }[];
   availableLines: string[];
   availableCategories: string[];
   availableTypes: string[];

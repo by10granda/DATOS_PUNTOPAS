@@ -178,8 +178,11 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
   }
 
   const hours = bucket === 'week'
-    ? Array.from(new Set(Array.from({ length: Math.max(1, dayjs(dateEnd).diff(dayjs(dateStart), 'week') + 2) }, (_value, index) => `Sem ${dayjs(dateStart).startOf('week').add(1 + index * 7, 'day').format('DD/MM')}`)))
-    : Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+    ? Array.from(new Set(Array.from({ length: Math.max(1, dayjs(dateEnd).diff(dayjs(dateStart), 'week') + 2) }, (_value, index) => {
+      const weekStart = dayjs(dateStart).startOf('week').add(1 + index * 7, 'day');
+      return JSON.stringify({ label: `Sem ${weekStart.format('DD/MM')}`, weekStart: weekStart.format('YYYY-MM-DD'), monthLabel: weekStart.format('MMMM YYYY') });
+    }))).map((item) => JSON.parse(item))
+    : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
 
   return dedupeInventoryByCode(inventory).map((item) => {
     const provider = item.proveedores?.[0];
@@ -225,7 +228,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
-      monthlySales: hours.map((hour) => ({ month: hour, quantity: productSales.get(hour) ?? 0, revenue: productRevenue.get(hour) ?? 0, profit: productProfit.get(hour) ?? 0 })),
+      monthlySales: hours.map((hour) => ({ month: hour.label, quantity: productSales.get(hour.label) ?? 0, revenue: productRevenue.get(hour.label) ?? 0, profit: productProfit.get(hour.label) ?? 0, weekStart: hour.weekStart, monthLabel: hour.monthLabel })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
       salesProfitWithIva: salesProfitWithProviderCost,
       salesAverageMarginPercent
@@ -367,8 +370,14 @@ export const buildProductOverview = (products, params) => {
   }).sort((a, b) => b.smartScore - a.smartScore);
 
   const weeklyLabels = Array.from(new Set(products.flatMap((product) => product.monthlySales.map((sale) => sale.month))));
-  const weeklyUnitsSeries = weeklyLabels.map((week) => ({ week, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.quantity ?? 0), 0) }));
-  const weeklyRevenueSeries = weeklyLabels.map((week) => ({ week, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === week)?.revenue ?? 0), 0) }));
+  const weeklyUnitsSeries = weeklyLabels.map((week) => {
+    const sale = products.flatMap((product) => product.monthlySales).find((item) => item.month === week);
+    return { week, weekStart: sale?.weekStart, monthLabel: sale?.monthLabel, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((item) => item.month === week)?.quantity ?? 0), 0) };
+  });
+  const weeklyRevenueSeries = weeklyLabels.map((week) => {
+    const sale = products.flatMap((product) => product.monthlySales).find((item) => item.month === week);
+    return { week, weekStart: sale?.weekStart, monthLabel: sale?.monthLabel, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((item) => item.month === week)?.revenue ?? 0), 0) };
+  });
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
   const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
 

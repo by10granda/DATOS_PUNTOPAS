@@ -1,4 +1,4 @@
-import type { ProductRow } from './types';
+import type { ProductOverviewRow, ProductRow } from './types';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -75,6 +75,83 @@ export const exportPdf = (rows: ProductRow[], title: string) => {
       row.rotation.toFixed(2),
       row.inventoryState
     ])
+  });
+  doc.save(`${title}.pdf`);
+};
+
+export const exportOverviewExcel = (rows: ProductOverviewRow[], fileName: string) => {
+  const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
+  const data = rows.map((row) => ({
+    Código: row.code,
+    Descripción: row.description,
+    Marca: row.brand,
+    Línea: row.line,
+    Categoría: row.category,
+    Tipo: row.type,
+    'Stock Total': row.stockTotal,
+    ...Object.fromEntries(warehouseColumns.map((warehouse) => [warehouse, row.warehouseStocks?.[warehouse] ?? 0])),
+    'Unidades Vendidas': row.salesXMonths,
+    'Valor Vendido': row.valueSold,
+    Utilidad: row.totalProfit,
+    'Margen %': row.marginPercent,
+    Rotación: row.rotation,
+    'Cobertura Días': row.coverageDays >= 999 ? '999+' : row.coverageDays,
+    'Días Sin Venta': row.daysSinceLastSale >= 999 ? '999+' : row.daysSinceLastSale,
+    ABC: row.abcClass,
+    XYZ: row.xyzClass,
+    Pareto: row.pareto ? '80/20' : 'No',
+    Tendencia: row.trend,
+    'Variación Tendencia %': row.trendPercent,
+    Score: row.smartScore,
+    Estado: row.inventoryState,
+    'Capital Inmovilizado': row.immobilizedCapital,
+  }));
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  worksheet['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: Object.keys(data[0] ?? {}).length - 1 } }) };
+  worksheet['!cols'] = Object.keys(data[0] ?? {}).map((key) => ({ wch: Math.max(12, Math.min(38, key.length + 4)) }));
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Tabla BI');
+  XLSX.writeFile(workbook, `${fileName}.xlsx`);
+};
+
+export const exportOverviewPdf = (rows: ProductOverviewRow[], title: string) => {
+  const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+  doc.setFontSize(15);
+  doc.text(title, 14, 14);
+  doc.setFontSize(9);
+  doc.text(`Productos exportados: ${rows.length.toLocaleString('es-EC')}`, 14, 20);
+  autoTable(doc, {
+    startY: 25,
+    styles: { fontSize: 6, cellPadding: 1.4, overflow: 'linebreak' },
+    headStyles: { fillColor: [6, 26, 36], textColor: [37, 255, 0], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [244, 247, 251] },
+    head: [[
+      'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades', 'Valor Vendido', 'Utilidad', 'Margen', 'Rotación', 'Cobertura', 'Días Sin Venta', 'ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'
+    ]],
+    body: rows.map((row) => [
+      row.code,
+      row.description,
+      row.brand,
+      row.line,
+      row.category,
+      row.type,
+      row.stockTotal,
+      ...warehouseColumns.map((warehouse) => row.warehouseStocks?.[warehouse] ?? 0),
+      row.salesXMonths,
+      row.valueSold.toFixed(2),
+      row.totalProfit.toFixed(2),
+      row.marginPercent.toFixed(1),
+      row.rotation.toFixed(2),
+      row.coverageDays >= 999 ? '999+' : row.coverageDays.toFixed(0),
+      row.daysSinceLastSale >= 999 ? '999+' : row.daysSinceLastSale,
+      row.abcClass,
+      row.xyzClass,
+      row.pareto ? '80/20' : 'No',
+      `${row.trend} ${row.trendPercent.toFixed(1)}%`,
+      row.smartScore.toFixed(1),
+      row.inventoryState,
+    ]),
   });
   doc.save(`${title}.pdf`);
 };

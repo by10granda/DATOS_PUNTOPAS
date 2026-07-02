@@ -246,9 +246,12 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
     priceByProduct.set(code, numberValue(sale.precio_venta));
   }
 
-  const months = bucket === 'week'
-    ? Array.from(new Set(Array.from({ length: Math.max(1, dayjs(dateEnd).diff(dayjs(dateStart), 'week') + 2) }, (_value, index) => `Sem ${dayjs(dateStart).startOf('week').add(1 + index * 7, 'day').format('DD/MM')}`)))
-    : Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+  const months: Array<{ label: string; weekStart?: string; monthLabel?: string }> = bucket === 'week'
+    ? Array.from(new Set(Array.from({ length: Math.max(1, dayjs(dateEnd).diff(dayjs(dateStart), 'week') + 2) }, (_value, index) => {
+      const weekStart = dayjs(dateStart).startOf('week').add(1 + index * 7, 'day');
+      return JSON.stringify({ label: `Sem ${weekStart.format('DD/MM')}`, weekStart: weekStart.format('YYYY-MM-DD'), monthLabel: weekStart.format('MMMM YYYY') });
+    }))).map((item) => JSON.parse(item) as { label: string; weekStart: string; monthLabel: string })
+    : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
 
   return dedupeInventoryByCode(inventory).map((item) => {
     const provider = item.proveedores?.[0];
@@ -296,7 +299,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
-      monthlySales: months.map((month) => ({ month, quantity: productSales.get(month) ?? 0, revenue: productRevenue.get(month) ?? 0, profit: productProfit.get(month) ?? 0 })),
+      monthlySales: months.map((month) => ({ month: month.label, quantity: productSales.get(month.label) ?? 0, revenue: productRevenue.get(month.label) ?? 0, profit: productProfit.get(month.label) ?? 0, weekStart: month.weekStart, monthLabel: month.monthLabel })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
       salesProfitWithIva: salesProfitWithProviderCost,
       salesAverageMarginPercent

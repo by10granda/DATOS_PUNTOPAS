@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { fetchBranches, fetchDashboard, fetchProductOverview } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportPdf, money, percent } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3];
 const badgeColor = (signal: ProductRow['inventorySignal']) =>
@@ -651,6 +651,13 @@ function HistoricalModal({
 }
 
 function ProductOverviewModule({ data, loading, period, onPeriodChange, onExpand, onRefresh }: { data: ProductOverviewResponse | null; loading: boolean; period: PeriodMonths; onPeriodChange: (period: PeriodMonths) => void; onExpand: () => void; onRefresh: () => void }) {
+  const [chartMonth, setChartMonth] = useState('TODOS');
+  const [chartWeek, setChartWeek] = useState('TODAS');
+  const months = Array.from(new Set(data?.weeklyUnitsSeries.map((item) => item.monthLabel).filter(Boolean) ?? [])) as string[];
+  const weeks = (data?.weeklyUnitsSeries ?? []).filter((item) => chartMonth === 'TODOS' || item.monthLabel === chartMonth);
+  const filteredUnits = (data?.weeklyUnitsSeries ?? []).filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
+  const filteredRevenue = (data?.weeklyRevenueSeries ?? []).filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
+
   return (
     <section className="premium-card rounded-[1.8rem] border-corporateGreen/30 p-5">
       <div className="mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
@@ -688,15 +695,32 @@ function ProductOverviewModule({ data, loading, period, onPeriodChange, onExpand
 
           <div className="mt-5 grid gap-4 xl:grid-cols-2">
             <button onClick={onExpand} className="text-left">
-              <ProductOverviewChart title="Ventas semanales (Unidades)" data={data.weeklyUnitsSeries} dataKey="quantity" color="#25ff00" />
+              <ProductOverviewChart title="Ventas semanales (Unidades)" data={filteredUnits} dataKey="quantity" color="#25ff00" />
             </button>
             <button onClick={onExpand} className="text-left">
-              <ProductOverviewChart title="Dinero vendido semanalmente" data={data.weeklyRevenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
+              <ProductOverviewChart title="Dinero vendido semanalmente" data={filteredRevenue} dataKey="revenue" color="#38bdf8" moneyAxis />
             </button>
           </div>
+          <ChartFilterBar months={months} weeks={weeks.map((item) => item.week)} month={chartMonth} week={chartWeek} onMonthChange={(value) => { setChartMonth(value); setChartWeek('TODAS'); }} onWeekChange={setChartWeek} />
         </>
       )}
     </section>
+  );
+}
+
+function ChartFilterBar({ months, weeks, month, week, onMonthChange, onWeekChange }: { months: string[]; weeks: string[]; month: string; week: string; onMonthChange: (value: string) => void; onWeekChange: (value: string) => void }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-700 bg-slate-950/45 p-3">
+      <div className="text-xs font-black uppercase tracking-[0.2em] text-corporateGreen">Filtrar gráficas</div>
+      <select value={month} onChange={(event) => onMonthChange(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-black text-white outline-none focus:border-corporateGreen">
+        <option value="TODOS">Todos los meses</option>
+        {months.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+      <select value={week} onChange={(event) => onWeekChange(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-black text-white outline-none focus:border-corporateGreen">
+        <option value="TODAS">Todas las semanas</option>
+        {weeks.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </div>
   );
 }
 
@@ -725,6 +749,12 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
   const [analysis, setAnalysis] = useState<'all' | 'lowStock' | 'overstock' | 'noSales' | 'highRotation'>('all');
   const [sort, setSort] = useState<'smartScore' | 'rotation' | 'totalProfit' | 'valueSold' | 'marginPercent' | 'stock' | 'stockAsc' | 'coverageDays'>('smartScore');
   const [page, setPage] = useState(1);
+  const [chartMonth, setChartMonth] = useState('TODOS');
+  const [chartWeek, setChartWeek] = useState('TODAS');
+  const chartMonths = Array.from(new Set(data.weeklyUnitsSeries.map((item) => item.monthLabel).filter(Boolean))) as string[];
+  const chartWeeks = data.weeklyUnitsSeries.filter((item) => chartMonth === 'TODOS' || item.monthLabel === chartMonth).map((item) => item.week);
+  const filteredUnitsSeries = data.weeklyUnitsSeries.filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
+  const filteredRevenueSeries = data.weeklyRevenueSeries.filter((item) => (chartMonth === 'TODOS' || item.monthLabel === chartMonth) && (chartWeek === 'TODAS' || item.week === chartWeek));
 
   const searchTerm = normalizeSearch(search);
   const filtered = data.rows.filter((row) => {
@@ -770,9 +800,10 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <ProductOverviewChart title="Ventas semanales (Unidades)" data={data.weeklyUnitsSeries} dataKey="quantity" color="#25ff00" />
-        <ProductOverviewChart title="Dinero vendido semanalmente" data={data.weeklyRevenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
+        <ProductOverviewChart title="Ventas semanales (Unidades)" data={filteredUnitsSeries} dataKey="quantity" color="#25ff00" />
+        <ProductOverviewChart title="Dinero vendido semanalmente" data={filteredRevenueSeries} dataKey="revenue" color="#38bdf8" moneyAxis />
       </div>
+      <ChartFilterBar months={chartMonths} weeks={chartWeeks} month={chartMonth} week={chartWeek} onMonthChange={(value) => { setChartMonth(value); setChartWeek('TODAS'); }} onWeekChange={setChartWeek} />
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Productos Vendidos" value={data.kpis.totalProductsSold} />
@@ -783,12 +814,18 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
       </div>
 
       <div className="premium-card rounded-[1.6rem] p-4">
-        <div className="mb-4 flex flex-wrap gap-2">
-          <AnalysisButton active={analysis === 'lowStock'} label="Alta Rotación y Stock Bajo" onClick={() => resetPage(() => setAnalysis('lowStock'))} />
-          <AnalysisButton active={analysis === 'overstock'} label="Sobrestock y Pocas Ventas" onClick={() => resetPage(() => setAnalysis('overstock'))} />
-          <AnalysisButton active={analysis === 'noSales'} label="Productos Sin Ventas" onClick={() => resetPage(() => setAnalysis('noSales'))} />
-          <AnalysisButton active={analysis === 'highRotation'} label="Alta Rotación" onClick={() => resetPage(() => setAnalysis('highRotation'))} />
-          <AnalysisButton active={analysis === 'all'} label="Todos" onClick={() => resetPage(() => setAnalysis('all'))} />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <AnalysisButton active={analysis === 'lowStock'} label="Alta Rotación y Stock Bajo" onClick={() => resetPage(() => setAnalysis('lowStock'))} />
+            <AnalysisButton active={analysis === 'overstock'} label="Sobrestock y Pocas Ventas" onClick={() => resetPage(() => setAnalysis('overstock'))} />
+            <AnalysisButton active={analysis === 'noSales'} label="Productos Sin Ventas" onClick={() => resetPage(() => setAnalysis('noSales'))} />
+            <AnalysisButton active={analysis === 'highRotation'} label="Alta Rotación" onClick={() => resetPage(() => setAnalysis('highRotation'))} />
+            <AnalysisButton active={analysis === 'all'} label="Todos" onClick={() => resetPage(() => setAnalysis('all'))} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => exportOverviewExcel(filtered, `${data.title.toLowerCase().replace(/\s+/g, '-')}-tabla-bi`)} className="rounded-full bg-corporateBlue px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
+            <button onClick={() => exportOverviewPdf(filtered, `${data.title} - Tabla BI`)} className="rounded-full bg-corporateRed px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
+          </div>
         </div>
 
         <div className="grid gap-3 xl:grid-cols-[1.4fr_repeat(5,1fr)]">
