@@ -1204,6 +1204,7 @@ function DataSection({
 function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: DashboardResponse; scopeTitle: string; periodLabel: string; onClose: () => void }) {
   const [detailSearch, setDetailSearch] = useState('');
   const [detailSearchFocused, setDetailSearchFocused] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<ProductRow | null>(null);
   const rows = data.rows.filter((row) => row.salesXMonths > 0);
   const searchTerm = detailSearch.trim();
   const scoredRows = rows.map((row) => {
@@ -1310,7 +1311,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </thead>
             <tbody>
               {visibleRows.map((row) => (
-                <tr key={row.id} className="bg-white/5 transition hover:bg-white/10">
+                <tr key={row.id} onClick={() => setSelectedRow(row)} className="cursor-pointer bg-white/5 transition hover:bg-white/10">
                   <td className="rounded-l-xl px-2.5 py-2">
                     <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
@@ -1346,7 +1347,84 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </tbody>
           </table>
         </div>
+        {selectedRow && <ProductVariablesModal row={selectedRow} onClose={() => setSelectedRow(null)} />}
     </section>
+  );
+}
+
+function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () => void }) {
+  const baseDetails: Array<[string, string | number]> = [
+    ['Código', row.code],
+    ['Descripción', row.description],
+    ['Marca', row.brand],
+    ['Línea', row.line],
+    ['Categoría', row.category],
+    ['Tipo', row.type],
+    ['Proveedor', row.provider],
+    ['Cantidad vendida', row.salesXMonths],
+    ['fecha_venta', row.saleDate || 'NO CONSTA'],
+    ['Precio Punto PAS', money(row.pricePuntoPas)],
+    ['Precio PVP', row.pricePvp === null ? 'NO CONSTA' : money(row.pricePvp)],
+    ['Costo Proveedor', money(row.costProvider)],
+    ['Costo + IVA', money(row.costWithIva)],
+    ['precio_venta', row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'],
+    ['Costo Público', money(row.publicCost)],
+    ['Costo Público + IVA', money(row.publicCostWithIva)],
+    ['Precio Actual', money(row.currentPriceWithIva)],
+    ['Ganancia Unitaria', money(row.unitProfit)],
+    ['Ganancia Total', money(row.totalProfit)],
+    ['Margen Ganancia %', percent(row.marginPercent)],
+    ['Margen Actual %', percent(row.currentMarginPercent)],
+    ['Stock Total', row.stockTotal],
+    ['Rotación', row.rotation.toFixed(2)],
+    ['Promedio mensual vendido', row.averageMonthlySales.toFixed(2)],
+    ['Cobertura estimada días', row.estimatedDaysInventory >= 999 ? '999+' : row.estimatedDaysInventory],
+    ['Estado Inventario', row.inventoryState],
+    ['Señal Inventario', row.inventorySignal],
+    ['Última Compra', row.lastPurchase || 'NO CONSTA'],
+    ['Cantidad Última Compra', row.lastPurchaseQuantity],
+    ['Sucursal', row.branch],
+    ['Recomendación', row.recommendation],
+  ];
+  const warehouseDetails = Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => [warehouse, stock] as [string, number]);
+  const salesDetails = row.monthlySales.map((sale) => [sale.month, sale.quantity] as [string, number]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[1.5rem] border border-cyan-100/15 bg-[#061a24] p-4 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="mb-4 flex flex-col justify-between gap-3 border-b border-white/10 pb-4 lg:flex-row lg:items-start">
+          <div className="flex gap-4">
+            <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-20 w-20 rounded-2xl border border-cyan-100/15 object-cover" />
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.25em] text-[#18b8b1]">Variables del producto</div>
+              <h3 className="mt-1 text-xl font-black uppercase">{row.description}</h3>
+              <div className="mt-1 text-sm font-bold text-cyan-100/60">Código: {row.code}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-full bg-white px-5 py-2.5 font-black text-[#061a24]">Cerrar</button>
+        </div>
+
+        <VariableGrid title="Datos generales" items={baseDetails} />
+        <VariableGrid title="Bodegas" items={warehouseDetails.length ? warehouseDetails : [['Sin bodegas', 0]]} />
+        <VariableGrid title="Ventas por periodo" items={salesDetails} compact />
+      </div>
+    </div>
+  );
+}
+
+function VariableGrid({ title, items, compact }: { title: string; items: Array<[string, string | number]>; compact?: boolean }) {
+  return (
+    <div className="mb-4">
+      <div className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-[#18b8b1]">{title}</div>
+      <div className={`grid gap-2 ${compact ? 'sm:grid-cols-4 xl:grid-cols-6' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
+        {items.map(([label, value]) => (
+          <div key={`${title}-${label}`} className="rounded-xl border border-cyan-100/10 bg-white/5 px-3 py-2">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/50">{label}</div>
+            <div className="mt-1 break-words text-sm font-black text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
