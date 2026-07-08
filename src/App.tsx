@@ -1316,7 +1316,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                     <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.code}</td>
-                  <td className="max-w-[280px] truncate px-2.5 py-2 font-bold">{row.description}</td>
+                  <td className="min-w-[360px] max-w-[560px] whitespace-normal px-2.5 py-2 font-bold leading-snug">{row.description}</td>
                   <td className="px-2.5 py-2">{row.brand}</td>
                   <td className="px-2.5 py-2">{row.line}</td>
                   <td className="px-2.5 py-2">{row.category}</td>
