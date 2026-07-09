@@ -69,3 +69,12 @@ body {
   background: rgba(16, 45, 132, 0.35);
   border-radius: 999px;
 }
+
+.zero-stock-row,
+.zero-stock-row * {
+  color: #fecaca !important;
+}
+
+.zero-stock-row td {
+  border-color: rgba(248, 113, 113, 0.35) !important;
+}
