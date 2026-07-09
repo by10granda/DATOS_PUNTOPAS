@@ -1301,7 +1301,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
         </div>
 
         <div className="overflow-auto px-4 pb-4 pt-3 scrollbar-thin">
-          <table className="min-w-[1900px] w-full border-separate border-spacing-y-1 text-xs">
+          <table className="min-w-[3600px] w-full table-auto border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-10 bg-[#061a24]">
               <tr>
                 {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
@@ -1316,7 +1316,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                     <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.code}</td>
-                  <td className="min-w-[720px] whitespace-normal break-words px-2.5 py-3 font-bold leading-snug" title={row.description}>{row.description}</td>
+                  <td className="whitespace-normal break-words px-2.5 py-3 font-bold leading-snug" style={{ minWidth: 980, width: 980, maxWidth: 'none', overflow: 'visible', textOverflow: 'clip' }} title={row.description}>{row.description}</td>
                   <td className="px-2.5 py-2">{row.brand}</td>
                   <td className="px-2.5 py-2">{row.line}</td>
                   <td className="px-2.5 py-2">{row.category}</td>
