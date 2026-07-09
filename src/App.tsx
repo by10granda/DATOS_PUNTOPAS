@@ -1311,12 +1311,12 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </thead>
             <tbody>
               {visibleRows.map((row) => (
-                <tr key={row.id} onClick={() => setSelectedRow(row)} className="cursor-pointer bg-white/5 transition hover:bg-white/10">
+                <tr key={row.id} onClick={() => setSelectedRow(row)} className={`cursor-pointer transition hover:bg-white/10 ${row.stockTotal === 0 ? 'bg-red-950/70 text-red-100 ring-1 ring-red-500/30' : 'bg-white/5'}`}>
                   <td className="rounded-l-xl px-2.5 py-2">
                     <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.code}</td>
-                  <td className="min-w-[360px] max-w-[560px] whitespace-normal px-2.5 py-2 font-bold leading-snug">{row.description}</td>
+                  <td className="min-w-[720px] whitespace-normal break-words px-2.5 py-3 font-bold leading-snug" title={row.description}>{row.description}</td>
                   <td className="px-2.5 py-2">{row.brand}</td>
                   <td className="px-2.5 py-2">{row.line}</td>
                   <td className="px-2.5 py-2">{row.category}</td>
