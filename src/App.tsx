@@ -1311,7 +1311,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </thead>
             <tbody>
               {visibleRows.map((row) => (
-                <tr key={row.id} onClick={() => setSelectedRow(row)} className={`cursor-pointer transition hover:bg-white/10 ${row.stockTotal === 0 ? 'bg-red-950/70 text-red-100 ring-1 ring-red-500/30' : 'bg-white/5'}`}>
+                <tr key={row.id} onClick={() => setSelectedRow(row)} className={`cursor-pointer transition hover:bg-white/10 ${Number(row.stockTotal ?? row.stock) <= 0 ? 'bg-red-950 text-red-100 ring-2 ring-red-500/60' : 'bg-white/5'}`}>
                   <td className="rounded-l-xl px-2.5 py-2">
                     <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
@@ -1333,7 +1333,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                   <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2">{row.lastPurchaseQuantity}</td>
-                  <td className="px-2.5 py-2 font-black text-[#18b8b1]">{row.stockTotal}</td>
+                  <td className={`px-2.5 py-2 font-black ${Number(row.stockTotal ?? row.stock) <= 0 ? 'rounded-lg bg-red-600 text-white' : 'text-[#18b8b1]'}`}>{row.stockTotal}</td>
                   {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                   <td className="rounded-r-xl px-2.5 py-2 font-black">{percent(row.marginPercent)}</td>
                   <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{percent(row.currentMarginPercent)}</td>
@@ -1390,14 +1390,14 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
   const salesDetails = row.monthlySales.map((sale) => [sale.month, sale.quantity] as [string, number]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[1.5rem] border border-cyan-100/15 bg-[#061a24] p-4 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="h-full w-full max-w-4xl overflow-y-auto border-l border-cyan-100/15 bg-[#061a24] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 flex flex-col justify-between gap-3 border-b border-white/10 pb-4 lg:flex-row lg:items-start">
           <div className="flex gap-4">
             <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-20 w-20 rounded-2xl border border-cyan-100/15 object-cover" />
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="text-xs font-black uppercase tracking-[0.25em] text-[#18b8b1]">Variables del producto</div>
-              <h3 className="mt-1 text-xl font-black uppercase">{row.description}</h3>
+              <h3 className="mt-1 whitespace-normal break-words text-2xl font-black uppercase leading-tight">{row.description}</h3>
               <div className="mt-1 text-sm font-bold text-cyan-100/60">Código: {row.code}</div>
             </div>
           </div>
