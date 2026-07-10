@@ -1,0 +1,70 @@
+import dayjs from 'dayjs';
+import { buildProductOverview, loadSiapeProducts } from './_core.js';
+
+export const maxDuration = 60;
+
+const resolveOverviewRange = (months) => {
+  const end = dayjs().subtract(1, 'month').endOf('month');
+  const start = end.subtract(months - 1, 'month').startOf('month');
+  return { dateStart: start.format('YYYY-MM-DD'), dateEnd: end.format('YYYY-MM-DD') };
+};
+
+const buildAssistantContext = (payload) => ({
+  titulo: payload.title,
+  periodo: payload.periodLabel,
+  sucursal: payload.branch,
+  kpis: payload.kpis,
+  productosRelevantes: payload.rows.slice(0, 30).map((row) => ({
+    codigo: row.code,
+    descripcion: row.description,
+    proveedor: row.provider,
+    unidadesVendidas: row.salesXMonths,
+    valorVendido: Number(row.valueSold.toFixed(2)),
+    utilidad: Number(row.totalProfit.toFixed(2)),
+    margen: Number(row.marginPercent.toFixed(2)),
+    stockTotal: row.stockTotal,
+    rotacion: Number(row.rotation.toFixed(2)),
+    coberturaDias: row.coverageDays >= 999 ? '999+' : Number(row.coverageDays.toFixed(0)),
+    abc: row.abcClass,
+    tendencia: row.trend,
+    estado: row.inventoryState,
+  }))
+});
+
+const askOpenAI = async (question, context) => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY no esta configurada.');
+  const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'Eres un analista ejecutivo BI de ALMACEN PAS. Responde en espanol, claro, directo y basado unicamente en los datos enviados. Si falta un dato, dilo.' },
+        { role: 'user', content: `Datos disponibles:\n${JSON.stringify(context)}\n\nPregunta: ${question}` }
+      ]
+    })
+  });
+  if (!response.ok) throw new Error(`OpenAI respondio HTTP ${response.status}: ${await response.text()}`);
+  const body = await response.json();
+  return body.choices?.[0]?.message?.content?.trim() ?? 'No se pudo generar una respuesta.';
+};
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Método no permitido.' });
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  const periodMonths = Math.min(3, Math.max(1, Number(req.body?.periodMonths ?? 3)));
+  if (!question) return res.status(400).json({ message: 'Debe enviar una pregunta.' });
+
+  try {
+    const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
+    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
+    const answer = await askOpenAI(question, buildAssistantContext(payload));
+    return res.status(200).json({ answer, periodLabel: payload.periodLabel });
+  } catch (error) {
+    return res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo consultar el asistente.' });
+  }
+}

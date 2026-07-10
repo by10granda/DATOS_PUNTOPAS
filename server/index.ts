@@ -117,6 +117,72 @@ app.get('/api/product-overview', async (req, res) => {
   }
 });
 
+const buildAssistantContext = (payload: ReturnType<typeof buildProductOverview>) => {
+  const topRows = payload.rows.slice(0, 30).map((row) => ({
+    codigo: row.code,
+    descripcion: row.description,
+    proveedor: row.provider,
+    unidadesVendidas: row.salesXMonths,
+    valorVendido: Number(row.valueSold.toFixed(2)),
+    utilidad: Number(row.totalProfit.toFixed(2)),
+    margen: Number(row.marginPercent.toFixed(2)),
+    stockTotal: row.stockTotal,
+    rotacion: Number(row.rotation.toFixed(2)),
+    coberturaDias: row.coverageDays >= 999 ? '999+' : Number(row.coverageDays.toFixed(0)),
+    abc: row.abcClass,
+    tendencia: row.trend,
+    estado: row.inventoryState,
+  }));
+
+  return {
+    titulo: payload.title,
+    periodo: payload.periodLabel,
+    sucursal: payload.branch,
+    kpis: payload.kpis,
+    productosRelevantes: topRows,
+  };
+};
+
+const askOpenAI = async (question: string, context: unknown) => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY no está configurada.');
+  const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'Eres un analista ejecutivo BI de ALMACEN PAS. Responde en español, claro, directo y basado únicamente en los datos enviados. Si falta un dato, dilo.' },
+        { role: 'user', content: `Datos disponibles:\n${JSON.stringify(context)}\n\nPregunta: ${question}` }
+      ]
+    })
+  });
+  if (!response.ok) throw new Error(`OpenAI respondió HTTP ${response.status}: ${await response.text()}`);
+  const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  return body.choices?.[0]?.message?.content?.trim() ?? 'No se pudo generar una respuesta.';
+};
+
+app.post('/api/assistant', async (req, res) => {
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  const periodMonths = Math.min(3, Math.max(1, Number(req.body?.periodMonths ?? 3))) as PeriodMonths;
+  if (!question) {
+    res.status(400).json({ message: 'Debe enviar una pregunta.' });
+    return;
+  }
+
+  try {
+    const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
+    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
+    const answer = await askOpenAI(question, buildAssistantContext(payload));
+    res.json({ answer, periodLabel: payload.periodLabel });
+  } catch (error) {
+    res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo consultar el asistente.' });
+  }
+});
+
 app.get('/api/product/:id', (_req, res) => {
   res.status(410).json({ message: 'El detalle de producto ahora se obtiene desde la tabla cargada por SIAPE.' });
 });

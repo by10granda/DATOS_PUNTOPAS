@@ -2,7 +2,8 @@
   "functions": {
     "api/dashboard.js": { "maxDuration": 60 },
     "api/debug-siape.js": { "maxDuration": 60 },
-    "api/product-overview.js": { "maxDuration": 60 }
+    "api/product-overview.js": { "maxDuration": 60 },
+    "api/assistant.js": { "maxDuration": 60 }
   },
   "crons": [
     { "path": "/api/product-overview?periodMonths=1&refresh=1", "schedule": "0 6 * * *" },
