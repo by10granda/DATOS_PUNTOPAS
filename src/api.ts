@@ -59,3 +59,21 @@ export async function fetchProductOverview(periodMonths: number, refresh = false
   }
   return response.json();
 }
+
+export async function askAssistant(params: { question: string; periodMonths: number }): Promise<{ answer: string; periodLabel: string }> {
+  const response = await fetch(apiUrl('/api/assistant'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    try {
+      const error = JSON.parse(body) as { message?: string };
+      throw new Error(error?.message ? `${error.message} (HTTP ${response.status})` : `No se pudo consultar el asistente (HTTP ${response.status})`);
+    } catch {
+      throw new Error(`No se pudo consultar el asistente (HTTP ${response.status}): ${body.slice(0, 180)}`);
+    }
+  }
+  return response.json();
+}

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { fetchBranches, fetchDashboard, fetchProductOverview } from './api';
+import { askAssistant, fetchBranches, fetchDashboard, fetchProductOverview } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
 import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent } from './utils';
 
@@ -575,6 +575,74 @@ function App() {
 
       {drawer && <ProductDrawer row={drawer.row} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
       {historicalOpen && <HistoricalModal manualStart={manualStart} manualEnd={manualEnd} manualError={manualError} onStartChange={setManualStart} onEndChange={setManualEnd} onApply={applyManualRange} onClose={() => setHistoricalOpen(false)} />}
+      <AssistantWidget periodMonths={overviewPeriod} />
+    </div>
+  );
+}
+
+function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
+  const [open, setOpen] = useState(false);
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [periodLabel, setPeriodLabel] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const speak = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-EC';
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const ask = async () => {
+    const cleanQuestion = question.trim();
+    if (!cleanQuestion) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await askAssistant({ question: cleanQuestion, periodMonths });
+      setAnswer(result.answer);
+      setPeriodLabel(result.periodLabel);
+      speak(result.answer);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo consultar el asistente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed bottom-5 right-5 z-[70]">
+      {open && (
+        <div className="mb-3 w-[min(92vw,460px)] rounded-[1.5rem] border border-corporateGreen/40 bg-[#061a24] p-4 text-white shadow-2xl">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-corporateGreen">Asistente IA</div>
+              <div className="mt-1 text-sm font-bold text-cyan-100/60">Pregunta sobre ventas, inventario, proveedores y rotación.</div>
+            </div>
+            <button onClick={() => setOpen(false)} className="rounded-full bg-white px-3 py-1 text-sm font-black text-[#061a24]">Cerrar</button>
+          </div>
+          <textarea
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="Ej: ¿Cuáles son los productos críticos por stock?"
+            className="min-h-28 w-full rounded-2xl border border-cyan-100/15 bg-slate-950/70 px-3 py-3 text-sm font-bold text-white outline-none focus:border-corporateGreen"
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={ask} disabled={loading || !question.trim()} className="rounded-full bg-corporateGreen px-5 py-2.5 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">{loading ? 'Consultando...' : 'Preguntar'}</button>
+            {answer && <button onClick={() => speak(answer)} className="rounded-full border border-corporateGreen/50 px-4 py-2.5 text-sm font-black text-corporateGreen">Leer respuesta</button>}
+          </div>
+          {periodLabel && <div className="mt-3 text-xs font-bold text-cyan-100/50">Periodo analizado: {periodLabel}</div>}
+          {error && <div className="mt-3 rounded-xl border border-red-400/30 bg-red-950/50 px-3 py-2 text-sm font-bold text-red-100">{error}</div>}
+          {answer && <div className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-cyan-100/10 bg-white/5 p-3 text-sm font-semibold leading-relaxed text-cyan-50">{answer}</div>}
+        </div>
+      )}
+      <button onClick={() => setOpen((current) => !current)} className="rounded-full bg-corporateGreen px-5 py-3 text-sm font-black uppercase tracking-wide text-slate-950 shadow-2xl shadow-corporateGreen/20">
+        IA Datos
+      </button>
     </div>
   );
 }
