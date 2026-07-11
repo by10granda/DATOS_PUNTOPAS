@@ -85,7 +85,7 @@ const answerDirectly = async (question, periodMonths) => {
     return `Hoy ${today} se vendieron ${rows.length} productos distintos, con ${totalUnits} unidades y un total vendido de ${formatMoney(totalRevenue)}.\n\nProductos principales:\n${detail}`;
   }
 
-  if (normalized.includes('sobrestock')) {
+  if (normalized.includes('sobrestock') || normalized.includes('sobre stock')) {
     const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
     const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
     const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant-direct', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
