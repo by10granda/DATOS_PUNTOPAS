@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { askAssistant, fetchBranches, fetchDashboard, fetchProductOverview } from './api';
+import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
 import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent } from './utils';
 
@@ -84,11 +84,6 @@ function App() {
   const [sortKey, setSortKey] = useState<keyof ProductRow>('salesXMonths');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
-  const [overviewPeriod, setOverviewPeriod] = useState<PeriodMonths>(3);
-  const [overviewData, setOverviewData] = useState<ProductOverviewResponse | null>(null);
-  const [overviewLoading, setOverviewLoading] = useState(true);
-  const [overviewError, setOverviewError] = useState<string | null>(null);
-  const [overviewExpanded, setOverviewExpanded] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -97,24 +92,6 @@ function App() {
   useEffect(() => {
     fetchBranches().then(setBranches).catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    let active = true;
-    setOverviewLoading(true);
-    fetchProductOverview(overviewPeriod)
-      .then((result) => {
-        if (!active) return;
-        setOverviewData(result);
-        setOverviewError(null);
-      })
-      .catch((err: Error) => {
-        if (active) setOverviewError(err.message);
-      })
-      .finally(() => {
-        if (active) setOverviewLoading(false);
-      });
-    return () => { active = false; };
-  }, [overviewPeriod]);
 
   useEffect(() => {
     let active = true;
@@ -278,32 +255,10 @@ function App() {
 
       <main className="mx-auto max-w-[1760px] space-y-4 px-4 py-5">
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
-        {overviewError && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{overviewError}</div>}
-
-        {overviewExpanded && overviewData ? (
-          <ProductOverviewExpanded data={overviewData} onClose={() => setOverviewExpanded(false)} />
-        ) : dailyDetailOpen && data ? (
+        {dailyDetailOpen && data ? (
           <DailyDetailPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
         ) : (
           <>
-        <ProductOverviewModule
-          data={overviewData}
-          loading={overviewLoading}
-          period={overviewPeriod}
-          onPeriodChange={setOverviewPeriod}
-          onExpand={() => setOverviewExpanded(true)}
-          onRefresh={() => {
-            setOverviewLoading(true);
-            fetchProductOverview(overviewPeriod, true)
-              .then((result) => {
-                setOverviewData(result);
-                setOverviewError(null);
-              })
-              .catch((err: Error) => setOverviewError(err.message))
-              .finally(() => setOverviewLoading(false));
-          }}
-        />
-
         <section className="premium-card rounded-[1.6rem] p-4">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
@@ -575,7 +530,7 @@ function App() {
 
       {drawer && <ProductDrawer row={drawer.row} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
       {historicalOpen && <HistoricalModal manualStart={manualStart} manualEnd={manualEnd} manualError={manualError} onStartChange={setManualStart} onEndChange={setManualEnd} onApply={applyManualRange} onClose={() => setHistoricalOpen(false)} />}
-      <AssistantWidget periodMonths={overviewPeriod} />
+      <AssistantWidget periodMonths={3} />
     </div>
   );
 }
