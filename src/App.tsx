@@ -615,9 +615,9 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
   };
 
   return (
-    <div className="fixed bottom-5 left-5 z-[100]">
+    <div className="fixed right-4 top-1/2 -translate-y-1/2" style={{ zIndex: 99999 }}>
       {open && (
-        <div className="mb-3 w-[min(92vw,460px)] rounded-[1.5rem] border border-corporateGreen/40 bg-[#061a24] p-4 text-white shadow-2xl">
+        <div className="mb-3 mr-2 w-[min(92vw,460px)] rounded-[1.5rem] border border-corporateGreen/40 bg-[#061a24] p-4 text-white shadow-2xl">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.22em] text-corporateGreen">Asistente IA</div>
@@ -640,8 +640,8 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
           {answer && <div className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-cyan-100/10 bg-white/5 p-3 text-sm font-semibold leading-relaxed text-cyan-50">{answer}</div>}
         </div>
       )}
-      <button onClick={() => setOpen((current) => !current)} className="rounded-full border-4 border-white bg-corporateGreen px-6 py-4 text-base font-black uppercase tracking-wide text-slate-950 shadow-2xl shadow-corporateGreen/40">
-        Asistente IA Datos
+      <button onClick={() => setOpen((current) => !current)} className="rounded-full border-4 border-white bg-corporateGreen px-5 py-5 text-base font-black uppercase tracking-wide text-slate-950 shadow-2xl shadow-corporateGreen/40 [writing-mode:vertical-rl]">
+        IA Datos
       </button>
     </div>
   );
