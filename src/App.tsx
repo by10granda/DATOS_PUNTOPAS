@@ -1407,11 +1407,6 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="rounded-r-xl px-2.5 py-2 font-black">{percent(row.marginPercent)}</td>
                   <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{percent(row.currentMarginPercent)}</td>
                 </tr>
-                <tr onClick={() => setSelectedRow(row)} className={`daily-detail-row cursor-pointer ${Number(row.stockTotal ?? row.stock) <= 0 ? 'zero-stock-row bg-red-950/80' : 'bg-white/5 text-white'}`}>
-                  <td colSpan={22 + warehouseColumns.length} className="rounded-xl px-4 py-3 text-sm font-black leading-snug">
-                    <span className="mr-2 text-[#18b8b1]">Descripción completa:</span>{row.description}
-                  </td>
-                </tr>
                 </Fragment>
               ))}
               {visibleRows.length === 0 && (
