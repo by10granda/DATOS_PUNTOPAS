@@ -5,6 +5,7 @@ export const branches = [{ name: 'ALMACEN PAS' }];
 const numberValue = (value) => Number(value ?? 0) || 0;
 const textValue = (value, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
 const normalizeText = (value) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+let tokenCache = null;
 const averageValidMargins = (rows) => {
   const margins = rows.map((row) => row.marginPercent).filter((margin) => Number.isFinite(margin));
   return margins.length ? margins.reduce((sum, margin) => sum + margin, 0) / margins.length : 0;
@@ -21,6 +22,8 @@ export const buildUrl = (baseUrl, path) => {
 };
 
 export const getToken = async (baseUrl) => {
+  if (tokenCache?.baseUrl === baseUrl && tokenCache.expiresAt > Date.now()) return tokenCache.token;
+
   const user = process.env.SIAPE_API_USER;
   const password = process.env.SIAPE_API_PASSWORD;
   if (!user || !password) throw new Error('Faltan credenciales SIAPE_API_USER o SIAPE_API_PASSWORD');
@@ -30,14 +33,21 @@ export const getToken = async (baseUrl) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ login: user, password })
   });
-  if (!response.ok) throw new Error(`No se pudo autenticar en SIAPE. Codigo ${response.status}`);
+  if (!response.ok) {
+    if (tokenCache?.baseUrl === baseUrl) return tokenCache.token;
+    throw new Error(`No se pudo autenticar en SIAPE. Codigo ${response.status}`);
+  }
 
   const text = await response.text();
   try {
     const parsed = JSON.parse(text);
-    return typeof parsed === 'string' ? parsed : parsed.token ?? text;
+    const token = typeof parsed === 'string' ? parsed : parsed.token ?? text;
+    tokenCache = { baseUrl, token, expiresAt: Date.now() + 12 * 60 * 60 * 1000 };
+    return token;
   } catch {
-    return text.replace(/^"|"$/g, '');
+    const token = text.replace(/^"|"$/g, '');
+    tokenCache = { baseUrl, token, expiresAt: Date.now() + 12 * 60 * 60 * 1000 };
+    return token;
   }
 };
 

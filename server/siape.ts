@@ -44,6 +44,7 @@ type SiapeCatalogItem = {
 
 const numberValue = (value: unknown) => Number(value ?? 0) || 0;
 const textValue = (value: unknown, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
+let tokenCache: { baseUrl: string; token: string; expiresAt: number } | null = null;
 
 const buildUrl = (baseUrl: string, path: string) => {
   const cleanBase = baseUrl.replace(/\/$/, '');
@@ -55,6 +56,10 @@ const buildUrl = (baseUrl: string, path: string) => {
 };
 
 const getToken = async (baseUrl: string) => {
+  if (tokenCache?.baseUrl === baseUrl && tokenCache.expiresAt > Date.now()) {
+    return tokenCache.token;
+  }
+
   const user = process.env.SIAPE_API_USER;
   const password = process.env.SIAPE_API_PASSWORD;
 
@@ -69,15 +74,22 @@ const getToken = async (baseUrl: string) => {
   });
 
   if (!response.ok) {
+    if (tokenCache?.baseUrl === baseUrl) {
+      return tokenCache.token;
+    }
     throw new Error(`No se pudo autenticar en SIAPE. Código ${response.status}`);
   }
 
   const text = await response.text();
   try {
     const parsed = JSON.parse(text) as string | { token?: string };
-    return typeof parsed === 'string' ? parsed : parsed.token ?? text;
+    const token = typeof parsed === 'string' ? parsed : parsed.token ?? text;
+    tokenCache = { baseUrl, token, expiresAt: Date.now() + 12 * 60 * 60 * 1000 };
+    return token;
   } catch {
-    return text.replace(/^"|"$/g, '');
+    const token = text.replace(/^"|"$/g, '');
+    tokenCache = { baseUrl, token, expiresAt: Date.now() + 12 * 60 * 60 * 1000 };
+    return token;
   }
 };
 
