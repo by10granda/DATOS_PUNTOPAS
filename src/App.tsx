@@ -541,6 +541,7 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
   const [answer, setAnswer] = useState('');
   const [periodLabel, setPeriodLabel] = useState('');
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const speak = (text: string) => {
@@ -552,9 +553,10 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
     window.speechSynthesis.speak(utterance);
   };
 
-  const ask = async () => {
-    const cleanQuestion = question.trim();
+  const ask = async (spokenQuestion?: string) => {
+    const cleanQuestion = (spokenQuestion ?? question).trim();
     if (!cleanQuestion) return;
+    setQuestion(cleanQuestion);
     setLoading(true);
     setError(null);
     try {
@@ -567,6 +569,28 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const listenAndAsk = () => {
+    const SpeechRecognition = (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition
+      ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError('Este navegador no soporta reconocimiento de voz. Use Chrome o Edge.');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-EC';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setListening(true);
+    setError(null);
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript ?? '';
+      if (transcript) void ask(transcript);
+    };
+    recognition.onerror = () => setError('No se pudo escuchar la pregunta. Intente nuevamente.');
+    recognition.onend = () => setListening(false);
+    recognition.start();
   };
 
   return (
@@ -587,7 +611,8 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
             className="min-h-28 w-full rounded-2xl border border-cyan-100/15 bg-slate-950/70 px-3 py-3 text-sm font-bold text-white outline-none focus:border-corporateGreen"
           />
           <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={ask} disabled={loading || !question.trim()} className="rounded-full bg-corporateGreen px-5 py-2.5 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">{loading ? 'Consultando...' : 'Preguntar'}</button>
+            <button onClick={listenAndAsk} disabled={loading || listening} className="rounded-full bg-corporateGreen px-5 py-2.5 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">{listening ? 'Escuchando...' : 'Hablar'}</button>
+            <button onClick={() => ask()} disabled={loading || !question.trim()} className="rounded-full border border-corporateGreen/50 px-5 py-2.5 text-sm font-black text-corporateGreen disabled:cursor-not-allowed disabled:opacity-50">{loading ? 'Consultando...' : 'Preguntar texto'}</button>
             {answer && <button onClick={() => speak(answer)} className="rounded-full border border-corporateGreen/50 px-4 py-2.5 text-sm font-black text-corporateGreen">Leer respuesta</button>}
           </div>
           {periodLabel && <div className="mt-3 text-xs font-bold text-cyan-100/50">Periodo analizado: {periodLabel}</div>}
@@ -601,6 +626,16 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
     </div>
   );
 }
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: { results?: ArrayLike<ArrayLike<{ transcript?: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+};
 
 function FilterSelect({
   label,

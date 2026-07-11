@@ -31,9 +31,34 @@ const buildAssistantContext = (payload) => ({
   }))
 });
 
-const askOpenAI = async (question, context) => {
+const askAI = async (question, context) => {
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    const model = process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct:free';
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openRouterKey}`,
+        'HTTP-Referer': process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://datos-puntopas.vercel.app',
+        'X-Title': 'Datos Punto PAS'
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: 'Eres un analista ejecutivo BI de ALMACEN PAS. Responde en espanol, claro, directo y basado unicamente en los datos enviados. Si falta un dato, dilo.' },
+          { role: 'user', content: `Datos disponibles:\n${JSON.stringify(context)}\n\nPregunta: ${question}` }
+        ]
+      })
+    });
+    if (!response.ok) throw new Error(`OpenRouter respondio HTTP ${response.status}: ${await response.text()}`);
+    const body = await response.json();
+    return body.choices?.[0]?.message?.content?.trim() ?? 'No se pudo generar una respuesta.';
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY no esta configurada.');
+  if (!apiKey) throw new Error('Configure OPENROUTER_API_KEY u OPENAI_API_KEY.');
   const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -62,7 +87,7 @@ export default async function handler(req, res) {
     const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
     const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
     const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
-    const answer = await askOpenAI(question, buildAssistantContext(payload));
+    const answer = await askAI(question, buildAssistantContext(payload));
     return res.status(200).json({ answer, periodLabel: payload.periodLabel });
   } catch (error) {
     return res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo consultar el asistente.' });
