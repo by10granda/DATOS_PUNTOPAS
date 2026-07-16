@@ -1231,8 +1231,8 @@ function DataSection({
                 <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                 <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
                 <td className="px-2.5 py-2">{money(row.publicCost)}</td>
-                <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
-                <td className="px-2.5 py-2">{money(row.publicCostWithIva)}</td>
+                <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen"></td>
+                <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{money(row.publicCostWithIva)}</td>
                 <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                 <td className="px-2.5 py-2">{percent(row.marginPercent)}</td>
                 <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{percentTwo(row.currentMarginPercent)}</td>
@@ -1387,8 +1387,8 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2">{row.provider}</td>
                   <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                   <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
-                  <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
-                  <td className="px-2.5 py-2">{money(row.publicCostWithIva)}</td>
+                  <td className="px-2.5 py-2 font-bold text-[#ffbe1b]"></td>
+                  <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{money(row.publicCostWithIva)}</td>
                   <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                   <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2">{row.lastPurchaseQuantity}</td>
@@ -1427,7 +1427,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
     ['Precio PVP', row.pricePvp === null ? 'NO CONSTA' : money(row.pricePvp)],
     ['Costo Proveedor', money(row.costProvider)],
     ['Costo + IVA', money(row.costWithIva)],
-    ['precio_venta', row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'],
+    ['precio_venta', ''],
     ['Costo Público', money(row.publicCost)],
     ['Costo Público + IVA', money(row.publicCostWithIva)],
     ['Precio Actual', money(row.currentPriceWithIva)],
@@ -1526,8 +1526,8 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Proveedor" value={row.provider} />
           <Detail label="Costo" value={money(row.costProvider)} />
           <Detail label="Precio Venta" value={money(row.publicCost)} />
-          <Detail label="precio_venta" value={row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'} />
-          <Detail label="Costo Público + IVA" value={money(row.publicCostWithIva)} />
+          <Detail label="precio_venta" value="" />
+          <Detail label="Costo Público + IVA" value={money(row.publicCostWithIva)} valueClassName="text-[#ffbe1b]" />
           <Detail label="Precio Actual" value={money(row.currentPriceWithIva)} />
           <Detail label="Ganancia Unitaria" value={money(row.unitProfit)} />
           <Detail label="Ganancia Total" value={money(row.totalProfit)} />
@@ -1596,11 +1596,11 @@ function KpiMini({ label, value, color }: { label: string; value: number; color:
   );
 }
 
-function Detail({ label, value }: { label: string; value: string | number }) {
+function Detail({ label, value, valueClassName = '' }: { label: string; value: string | number; valueClassName?: string }) {
   return (
     <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
       <div className="text-xs font-black uppercase tracking-widest text-slate-500">{label}</div>
-      <div className="mt-1 font-bold">{value}</div>
+      <div className={`mt-1 font-bold ${valueClassName}`}>{value}</div>
     </div>
   );
 }
