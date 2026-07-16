@@ -265,7 +265,7 @@ const buildRow = (product) => {
   const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;
   const marginBase = product.salesRevenueWithIva && product.salesRevenueWithIva > 0 ? product.salesRevenueWithIva : publicCostWithIva;
   const marginPercent = product.salesAverageMarginPercent ?? (marginBase > 0 ? ((product.salesProfitWithIva ?? catalogUnitProfit) / marginBase) * 100 : 0);
-  const currentMarginPercent = currentPriceWithIva > 0 ? ((currentPriceWithIva - costWithIva) / currentPriceWithIva) * 100 : 0;
+  const currentMarginPercent = costWithIva > 0 ? ((currentPriceWithIva - costWithIva) / costWithIva) * 100 : 0;
   const estimatedDaysInventory = averageMonthlySales > 0 ? Math.round((product.stock / averageMonthlySales) * 30) : 999;
   const inventoryState = salesXMonths === 0 ? 'Sin ventas' : rotation > 1.25 ? 'Alta rotacion' : product.stock > averageMonthlySales * 3 ? 'Sobrestock' : 'Normal';
   const inventorySignal = product.stock > averageMonthlySales * 3 ? 'Sobrestock' : salesXMonths === 0 ? 'Atención' : rotation > 1 ? 'Normal' : 'Atención';
