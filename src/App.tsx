@@ -5,6 +5,7 @@ import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOvervie
 import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3];
+const showAssistantWidget = false;
 const badgeColor = (signal: ProductRow['inventorySignal']) =>
   signal === 'Normal' ? 'bg-emerald-100 text-emerald-800' : signal === 'Atención' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
 
@@ -529,7 +530,7 @@ function App() {
 
       {drawer && <ProductDrawer row={drawer.row} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
       {historicalOpen && <HistoricalModal manualStart={manualStart} manualEnd={manualEnd} manualError={manualError} onStartChange={setManualStart} onEndChange={setManualEnd} onApply={applyManualRange} onClose={() => setHistoricalOpen(false)} />}
-      <AssistantWidget periodMonths={3} />
+      {showAssistantWidget && <AssistantWidget periodMonths={3} />}
     </div>
   );
 }
