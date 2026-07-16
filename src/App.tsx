@@ -1231,7 +1231,7 @@ function DataSection({
                 <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                 <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
                 <td className="px-2.5 py-2">{money(row.publicCost)}</td>
-                <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen"></td>
+                <td className="px-2.5 py-2 font-bold text-white">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
                 <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{money(row.publicCostWithIva)}</td>
                 <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                 <td className="px-2.5 py-2">{percent(row.marginPercent)}</td>
@@ -1387,7 +1387,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2">{row.provider}</td>
                   <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                   <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
-                  <td className="px-2.5 py-2 font-bold text-[#ffbe1b]"></td>
+                  <td className="px-2.5 py-2 font-bold text-white">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{money(row.publicCostWithIva)}</td>
                   <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                   <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>
@@ -1427,7 +1427,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
     ['Precio PVP', row.pricePvp === null ? 'NO CONSTA' : money(row.pricePvp)],
     ['Costo Proveedor', money(row.costProvider)],
     ['Costo + IVA', money(row.costWithIva)],
-    ['precio_venta', ''],
+    ['precio_venta', row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'],
     ['Costo Público', money(row.publicCost)],
     ['Costo Público + IVA', money(row.publicCostWithIva)],
     ['Precio Actual', money(row.currentPriceWithIva)],
@@ -1526,7 +1526,7 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Proveedor" value={row.provider} />
           <Detail label="Costo" value={money(row.costProvider)} />
           <Detail label="Precio Venta" value={money(row.publicCost)} />
-          <Detail label="precio_venta" value="" />
+          <Detail label="precio_venta" value={row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'} valueClassName="text-white" />
           <Detail label="Costo Público + IVA" value={money(row.publicCostWithIva)} valueClassName="text-[#ffbe1b]" />
           <Detail label="Precio Actual" value={money(row.currentPriceWithIva)} />
           <Detail label="Ganancia Unitaria" value={money(row.unitProfit)} />
