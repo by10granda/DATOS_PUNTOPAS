@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent, percentTwo } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3];
 const showAssistantWidget = false;
@@ -1235,7 +1235,7 @@ function DataSection({
                 <td className="px-2.5 py-2">{money(row.publicCostWithIva)}</td>
                 <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                 <td className="px-2.5 py-2">{percent(row.marginPercent)}</td>
-                <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{percent(row.currentMarginPercent)}</td>
+                <td className="px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{percentTwo(row.currentMarginPercent)}</td>
                 <td className="whitespace-nowrap px-2.5 py-2">{row.provider}</td>
                 <td className="px-2.5 py-2 font-bold">{row.rotation.toFixed(2)}</td>
                 <td className="rounded-r-xl px-2.5 py-2">
@@ -1395,7 +1395,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className={`px-2.5 py-2 font-black ${Number(row.stockTotal ?? row.stock) <= 0 ? 'rounded-lg bg-red-600 text-white' : 'text-[#18b8b1]'}`}>{row.stockTotal}</td>
                   {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                   <td className="rounded-r-xl px-2.5 py-2 font-black">{percent(row.marginPercent)}</td>
-                  <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{percent(row.currentMarginPercent)}</td>
+                  <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{percentTwo(row.currentMarginPercent)}</td>
                 </tr>
                 </Fragment>
               ))}
@@ -1434,7 +1434,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
     ['Ganancia Unitaria', money(row.unitProfit)],
     ['Ganancia Total', money(row.totalProfit)],
     ['Margen Ganancia %', percent(row.marginPercent)],
-    ['Margen Actual %', percent(row.currentMarginPercent)],
+    ['Margen Actual %', percentTwo(row.currentMarginPercent)],
     ['Stock Total', row.stockTotal],
     ['Rotación', row.rotation.toFixed(2)],
     ['Promedio mensual vendido', row.averageMonthlySales.toFixed(2)],
@@ -1532,7 +1532,7 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Ganancia Unitaria" value={money(row.unitProfit)} />
           <Detail label="Ganancia Total" value={money(row.totalProfit)} />
           <Detail label="Margen" value={percent(row.marginPercent)} />
-          <Detail label="Margen Actual" value={percent(row.currentMarginPercent)} />
+          <Detail label="Margen Actual" value={percentTwo(row.currentMarginPercent)} />
           <Detail label="Stock Total" value={row.stockTotal} />
           {Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => <Detail key={warehouse} label={warehouse} value={stock} />)}
           <Detail label="Última Compra" value={row.lastPurchase} />

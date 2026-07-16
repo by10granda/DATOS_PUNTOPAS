@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 export const money = (value: number) => value.toLocaleString('es-EC', { style: 'currency', currency: 'USD' });
 
 export const percent = (value: number) => `${value.toFixed(1)}%`;
+export const percentTwo = (value: number) => `${value.toFixed(2)}%`;
 
 export const exportExcel = (rows: ProductRow[], fileName: string) => {
   const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
@@ -33,7 +34,7 @@ export const exportExcel = (rows: ProductRow[], fileName: string) => {
     'Precio Punto PAS': row.pricePuntoPas,
     'Precio PVP': row.pricePvp ?? 'NO CONSTA',
     'Margen %': row.marginPercent,
-    'Margen Actual %': row.currentMarginPercent,
+    'Margen Actual %': Number(row.currentMarginPercent.toFixed(2)),
     Rotación: row.rotation,
     'Estado Inventario': row.inventoryState,
   }));
@@ -70,7 +71,7 @@ export const exportPdf = (rows: ProductRow[], title: string) => {
       row.publicCostWithIva.toFixed(2),
       row.currentPriceWithIva.toFixed(2),
       row.marginPercent.toFixed(1),
-      row.currentMarginPercent.toFixed(1),
+      row.currentMarginPercent.toFixed(2),
       row.provider,
       row.rotation.toFixed(2),
       row.inventoryState
