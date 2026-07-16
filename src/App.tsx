@@ -369,11 +369,10 @@ function App() {
                   <div className="text-xs font-black uppercase tracking-[0.2em] text-corporateGreen">Datos filtrados actualmente</div>
                   <div className="mt-1 text-sm font-bold text-white">{dataScopeTitle} | {activePeriodLabel}</div>
                 </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <StatCard label="Total Productos" value={data?.kpis.totalProducts ?? 0} />
                   <StatCard label="Unidades Vendidas" value={data?.kpis.totalUnitsSold ?? 0} accent="green" />
                   <StatCard label="Ganancias Totales" value={money(data?.kpis.totalProfit ?? 0)} accent="blue" />
-                  <StatCard label="Margen Promedio" value={percent(data?.kpis.averageMargin ?? 0)} accent="blue" />
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
