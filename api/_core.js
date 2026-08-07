@@ -300,7 +300,7 @@ export const buildDashboard = (products, params) => {
 
   const rows = filtered.map(buildRow);
   const monthLabels = Array.from(new Set(filtered.flatMap((product) => product.monthlySales.map((sale) => sale.month))));
-  const hourLabels = Array.from({ length: 24 }, (_value, hour) => `${String(hour).padStart(2, '0')}:00`);
+  const hourLabels = Array.from({ length: 14 }, (_value, index) => `${String(index + 7).padStart(2, '0')}:00`);
   const totalsByMonth = monthLabels.map((month) => ({ month, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === month)?.quantity ?? 0), 0) }));
   const totalUnitsSold = rows.reduce((sum, row) => sum + row.salesXMonths, 0);
   const totalStock = rows.reduce((sum, row) => sum + row.stock, 0);
