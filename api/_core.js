@@ -156,6 +156,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
   ]);
 
   const salesByProduct = new Map();
+  const hourlySalesByProduct = new Map();
   const revenueByProductBucket = new Map();
   const profitByProductBucket = new Map();
   const revenueByProduct = new Map();
@@ -169,16 +170,20 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     const code = sale.codigo;
     const saleDay = dayjs(sale.fecha_venta);
     const hour = bucket === 'week' && saleDay.isValid() ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}` : saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
+    const hourOfDay = saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
     const productSales = salesByProduct.get(code) ?? new Map();
+    const productHourlySales = hourlySalesByProduct.get(code) ?? new Map();
     const productRevenue = revenueByProductBucket.get(code) ?? new Map();
     const productProfit = profitByProductBucket.get(code) ?? new Map();
     const quantity = numberValue(sale.cantidad_vendida);
     const saleCostWithIva = numberValue(sale.precio_costo) * 1.15;
     const salePriceWithIva = numberValue(sale.precio_venta) * 1.15;
     productSales.set(hour, (productSales.get(hour) ?? 0) + quantity);
+    productHourlySales.set(hourOfDay, (productHourlySales.get(hourOfDay) ?? 0) + quantity);
     productRevenue.set(hour, (productRevenue.get(hour) ?? 0) + (salePriceWithIva * quantity));
     productProfit.set(hour, (productProfit.get(hour) ?? 0) + ((salePriceWithIva - saleCostWithIva) * quantity));
     salesByProduct.set(code, productSales);
+    hourlySalesByProduct.set(code, productHourlySales);
     revenueByProductBucket.set(code, productRevenue);
     profitByProductBucket.set(code, productProfit);
     revenueByProduct.set(code, (revenueByProduct.get(code) ?? 0) + (salePriceWithIva * quantity));
@@ -197,6 +202,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
       return JSON.stringify({ label: `Sem ${weekStart.format('DD/MM')}`, weekStart: weekStart.format('YYYY-MM-DD'), monthLabel: weekStart.format('MMMM YYYY') });
     }))).map((item) => JSON.parse(item))
     : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
+  const hoursOfDay = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
 
   return dedupeInventoryByCode(inventory).map((item) => {
     const provider = item.proveedores?.[0];
@@ -210,6 +216,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     const rawProviderCostWithIva = numberValue(provider?.costo_producto_proveedor_iva ?? providerCost * 1.15);
     const providerCostWithIva = normalizeProviderCostWithIva(rawProviderCostWithIva, providerCost, publicPriceWithIva, getSaleUnitFactor(catalogItem));
     const productSales = salesByProduct.get(item.codigo) ?? new Map();
+    const productHourlySales = hourlySalesByProduct.get(item.codigo) ?? new Map();
     const productRevenue = revenueByProductBucket.get(item.codigo) ?? new Map();
     const productProfit = profitByProductBucket.get(item.codigo) ?? new Map();
     const salePrices = salePricesWithIvaByProduct.get(item.codigo) ?? [];
@@ -244,6 +251,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
       saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
       monthlySales: hours.map((hour) => ({ month: hour.label, quantity: productSales.get(hour.label) ?? 0, revenue: productRevenue.get(hour.label) ?? 0, profit: productProfit.get(hour.label) ?? 0, weekStart: hour.weekStart, monthLabel: hour.monthLabel })),
+      hourlySales: hoursOfDay.map((hour) => ({ month: hour, quantity: productHourlySales.get(hour) ?? 0 })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
       salesProfitWithIva: salesProfitWithProviderCost,
       salesAverageMarginPercent
@@ -270,7 +278,7 @@ const buildRow = (product) => {
   const inventorySignal = product.stock > averageMonthlySales * 3 ? 'Sobrestock' : salesXMonths === 0 ? 'Atención' : rotation > 1 ? 'Normal' : 'Atención';
   const recommendation = salesXMonths === 0 ? 'Se recomienda detener compras y revisar portafolio.' : product.stock > averageMonthlySales * 3 ? `Este producto tiene sobrestock para aproximadamente ${Math.max(1, Math.round(estimatedDaysInventory / 30))} meses.` : estimatedDaysInventory <= 30 ? `Este producto tiene alta rotacion y se agotara en ${Math.max(1, estimatedDaysInventory)} dias.` : 'Se recomienda mantener el nivel actual de inventario.';
 
-  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, saleDate: product.saleDate, costProvider: product.cost, costWithIva, publicCost, salePrice, publicCostWithIva, currentPriceWithIva, marginPercent, currentMarginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory };
+  return { ...product, salesXMonths, unitProfit, totalProfit, lastPurchase: product.lastPurchase, saleDate: product.saleDate, costProvider: product.cost, costWithIva, publicCost, salePrice, publicCostWithIva, currentPriceWithIva, marginPercent, currentMarginPercent, rotation, inventoryState, inventorySignal, recommendation, averageMonthlySales, estimatedDaysInventory, hourlySales: product.hourlySales };
 };
 
 export const buildDashboard = (products, params) => {
@@ -292,6 +300,7 @@ export const buildDashboard = (products, params) => {
 
   const rows = filtered.map(buildRow);
   const monthLabels = Array.from(new Set(filtered.flatMap((product) => product.monthlySales.map((sale) => sale.month))));
+  const hourLabels = Array.from({ length: 24 }, (_value, hour) => `${String(hour).padStart(2, '0')}:00`);
   const totalsByMonth = monthLabels.map((month) => ({ month, quantity: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === month)?.quantity ?? 0), 0) }));
   const totalUnitsSold = rows.reduce((sum, row) => sum + row.salesXMonths, 0);
   const totalStock = rows.reduce((sum, row) => sum + row.stock, 0);
@@ -320,6 +329,7 @@ export const buildDashboard = (products, params) => {
     availableProducts: facetProducts.map((row) => ({ code: row.code, description: row.description })).sort((a, b) => a.description.localeCompare(b.description, 'es')),
     kpis: { totalProducts: rows.length, totalUnitsSold, totalStock, totalProfit, highRotation: rows.filter((row) => row.salesXMonths > averageGeneralSales).length, noSales: rows.filter((row) => row.salesXMonths === 0).length, overstock: rows.filter((row) => row.stock > row.averageMonthlySales * 3).length, averageMargin },
     monthlySeries: totalsByMonth,
+    hourlySeries: hourLabels.map((hour) => ({ hour, quantity: rows.reduce((sum, row) => sum + (row.hourlySales?.find((sale) => sale.month === hour)?.quantity ?? 0), 0) })),
     donutSeries,
     barSeries: totalsByMonth.map((item) => ({ name: item.month, ventas: item.quantity })),
     rows,

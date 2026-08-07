@@ -71,6 +71,7 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
     averageMonthlySales,
     estimatedDaysInventory,
     monthlySales: product.monthlySales,
+    hourlySales: product.hourlySales,
   };
 };
 
@@ -112,6 +113,7 @@ export const buildDashboard = (
 
   const rows = filtered.map((product) => buildRow(product, params.periodMonths));
   const monthLabels = Array.from(new Set(filtered.flatMap((product) => product.monthlySales.map((sale) => sale.month))));
+  const hourLabels = Array.from({ length: 24 }, (_value, hour) => `${String(hour).padStart(2, '0')}:00`);
 
   const totalsByMonth = monthLabels.map((month) => {
     const quantity = rows.reduce((sum, row) => {
@@ -184,6 +186,7 @@ export const buildDashboard = (
       averageMargin,
     },
     monthlySeries: totalsByMonth,
+    hourlySeries: hourLabels.map((hour) => ({ hour, quantity: rows.reduce((sum, row) => sum + (row.hourlySales.find((sale) => sale.month === hour)?.quantity ?? 0), 0) })),
     donutSeries,
     barSeries: totalsByMonth.map((item) => ({ name: item.month, ventas: item.quantity })),
     rows,

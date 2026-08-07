@@ -40,6 +40,7 @@ export type ProductRow = {
   averageMonthlySales: number;
   estimatedDaysInventory: number;
   monthlySales: MonthlySale[];
+  hourlySales: MonthlySale[];
   salesAverageMarginPercent?: number;
 };
 
@@ -70,6 +71,7 @@ export type DashboardResponse = {
     averageMargin: number;
   };
   monthlySeries: { month: string; quantity: number }[];
+  hourlySeries: { hour: string; quantity: number }[];
   donutSeries: { name: string; value: number }[];
   barSeries: { name: string; ventas: number }[];
   rows: ProductRow[];

@@ -37,6 +37,7 @@ export type ProductRecord = {
   saleDate: string;
   lastPurchaseQuantity: number;
   monthlySales: MonthlySale[];
+  hourlySales: MonthlySale[];
   salesRevenueWithIva?: number;
   salesProfitWithIva?: number;
   salesAverageMarginPercent?: number;
@@ -78,6 +79,7 @@ export type ProductRow = {
   averageMonthlySales: number;
   estimatedDaysInventory: number;
   monthlySales: MonthlySale[];
+  hourlySales: MonthlySale[];
 };
 
 export type DashboardResponse = {
@@ -107,6 +109,7 @@ export type DashboardResponse = {
     averageMargin: number;
   };
   monthlySeries: { month: string; quantity: number }[];
+  hourlySeries: { hour: string; quantity: number }[];
   donutSeries: { name: string; value: number }[];
   barSeries: { name: string; ventas: number }[];
   rows: ProductRow[];

@@ -1036,9 +1036,9 @@ function ExecutiveSummary({ data, scopeTitle, periodLabel, onRowClick, onTrendCl
               <DarkMetric label="Productos Vendidos" value={soldProducts.length.toLocaleString('es-EC')} />
             </div>
             <ResponsiveContainer width="100%" height={190}>
-              <LineChart data={data.monthlySeries}>
+              <LineChart data={data.hourlySeries}>
                 <CartesianGrid stroke="#31505c" vertical={false} opacity={0.35} />
-                <XAxis dataKey="month" stroke="#9dc7d0" fontSize={11} />
+                <XAxis dataKey="hour" stroke="#9dc7d0" fontSize={11} />
                 <YAxis stroke="#9dc7d0" fontSize={11} />
                 <Tooltip />
                 <Line type="monotone" dataKey="quantity" stroke="#18b8b1" strokeWidth={4} dot={{ r: 4, fill: '#ffbe1b' }} activeDot={{ r: 7 }} />
@@ -1307,11 +1307,11 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
 
         <div className="grid gap-4 p-4 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="rounded-2xl bg-[#092935] p-4">
-            <div className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-cyan-100/80">Línea general de ventas</div>
+            <div className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-cyan-100/80">Cantidad vendida por hora</div>
             <ResponsiveContainer width="100%" height={210}>
-              <LineChart data={data.monthlySeries}>
+              <LineChart data={data.hourlySeries}>
                 <CartesianGrid stroke="#31505c" vertical={false} opacity={0.35} />
-                <XAxis dataKey="month" stroke="#9dc7d0" fontSize={11} />
+                <XAxis dataKey="hour" stroke="#9dc7d0" fontSize={11} />
                 <YAxis stroke="#9dc7d0" fontSize={11} />
                 <Tooltip />
                 <Line type="monotone" dataKey="quantity" stroke="#18b8b1" strokeWidth={4} dot={{ r: 4, fill: '#ffbe1b' }} />
