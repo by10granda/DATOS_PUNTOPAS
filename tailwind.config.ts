@@ -7,8 +7,8 @@ export default {
     extend: {
       colors: {
         corporateRed: '#ff0000',
-        corporateGreen: '#25ff00',
-        corporateBlue: '#102d84',
+        corporateGreen: '#b91c1c',
+        corporateBlue: '#1e293b',
         softBg: '#f5f5f5'
       },
       boxShadow: {

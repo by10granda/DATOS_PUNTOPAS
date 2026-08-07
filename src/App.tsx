@@ -77,7 +77,7 @@ function App() {
   const [appliedManualRange, setAppliedManualRange] = useState<{ start: string; end: string } | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
   const [historicalOpen, setHistoricalOpen] = useState(false);
-  const [dark] = useState(true);
+  const [dark] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
   const [drawer, setDrawer] = useState<{ row: ProductRow; periodMonths: PeriodMonths } | null>(null);
@@ -1231,7 +1231,7 @@ function DataSection({
                 <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                 <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
                 <td className="px-2.5 py-2">{money(row.publicCost)}</td>
-                <td className="px-2.5 py-2 font-bold text-white">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
+                <td className="px-2.5 py-2"><span className="rounded-lg bg-corporateRed px-2 py-1 font-bold text-white">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</span></td>
                 <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{money(row.publicCostWithIva)}</td>
                 <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                 <td className="px-2.5 py-2">{percent(row.marginPercent)}</td>
@@ -1387,7 +1387,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2">{row.provider}</td>
                   <td className="px-2.5 py-2">{money(row.costProvider)}</td>
                   <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
-                  <td className="px-2.5 py-2 font-bold text-white">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</td>
+                  <td className="px-2.5 py-2"><span className="rounded-lg bg-corporateRed px-2 py-1 font-bold text-white">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</span></td>
                   <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{money(row.publicCostWithIva)}</td>
                   <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
                   <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>

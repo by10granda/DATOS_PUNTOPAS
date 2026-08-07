@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html, body, #root {
@@ -17,9 +17,9 @@ body {
 
 .premium-shell {
   background:
-    radial-gradient(circle at top left, rgba(24, 184, 177, 0.16), transparent 32rem),
-    radial-gradient(circle at top right, rgba(37, 255, 0, 0.10), transparent 28rem),
-    linear-gradient(135deg, #020617 0%, #061a24 52%, #073943 100%);
+    radial-gradient(circle at top left, rgba(255, 0, 0, 0.08), transparent 30rem),
+    radial-gradient(circle at top right, rgba(16, 45, 132, 0.07), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 52%, #eef2f7 100%);
 }
 
 .dark .premium-shell {
@@ -30,9 +30,9 @@ body {
 }
 
 .premium-card {
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(14px);
 }
 
@@ -44,9 +44,9 @@ body {
 
 .executive-header {
   background:
-    radial-gradient(circle at top left, rgba(24, 184, 177, 0.32), transparent 28rem),
-    linear-gradient(120deg, #061a24 0%, #073943 48%, #061a24 100%),
-    #061a24;
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.24), transparent 28rem),
+    linear-gradient(120deg, #ff0000 0%, #cf0000 54%, #8f0000 100%),
+    #ff0000;
 }
 
 .section-title::before {
@@ -56,8 +56,8 @@ body {
   height: 0.55rem;
   margin-right: 0.55rem;
   border-radius: 999px;
-  background: #25ff00;
-  box-shadow: 0 0 0 5px rgba(37, 255, 0, 0.16);
+  background: #ff0000;
+  box-shadow: 0 0 0 5px rgba(255, 0, 0, 0.12);
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -77,4 +77,66 @@ body {
 
 .zero-stock-row td {
   border-color: rgba(248, 113, 113, 0.35) !important;
+}
+
+.premium-shell main [class*="bg-[#061a24]"],
+.premium-shell main [class*="bg-[#092935]"],
+.premium-shell main [class*="bg-[#073943]"],
+.premium-shell main [class*="bg-[#071f2a]"] {
+  background: #ffffff !important;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  color: #0f172a;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+}
+
+.premium-shell main [class*="text-cyan-"],
+.premium-shell main [class*="text-cyan-"] *,
+.premium-shell main [class*="text-white"] {
+  color: #334155;
+}
+
+.premium-shell main button.bg-corporateRed,
+.premium-shell main button.bg-corporateBlue,
+.premium-shell main .bg-corporateRed,
+.premium-shell main .bg-corporateBlue {
+  color: #ffffff;
+}
+
+.premium-shell main thead,
+.premium-shell main [class*="sticky"][class*="top-0"] {
+  background: #f8fafc !important;
+}
+
+.premium-shell main tbody tr,
+.premium-shell main .daily-detail-row {
+  background: #ffffff !important;
+  color: #0f172a;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.premium-shell main tbody tr:hover,
+.premium-shell main .daily-detail-row:hover {
+  background: #fff5f5 !important;
+}
+
+.premium-shell main th {
+  color: #7f1d1d !important;
+  border-bottom-color: rgba(255, 0, 0, 0.18) !important;
+}
+
+.premium-shell main td {
+  border-bottom-color: rgba(226, 232, 240, 0.85);
+}
+
+.premium-shell main input,
+.premium-shell main select,
+.premium-shell main textarea {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.premium-shell main input::placeholder,
+.premium-shell main textarea::placeholder {
+  color: #94a3b8 !important;
 }
