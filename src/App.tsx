@@ -82,6 +82,7 @@ function App() {
   const hasLoadedRef = useRef(false);
   const [drawer, setDrawer] = useState<{ row: ProductRow; periodMonths: PeriodMonths } | null>(null);
   const [dailyDetailOpen, setDailyDetailOpen] = useState(false);
+  const [recommendationsOpen, setRecommendationsOpen] = useState(false);
   const [sortKey, setSortKey] = useState<keyof ProductRow>('salesXMonths');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -257,6 +258,8 @@ function App() {
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
         {dailyDetailOpen && data ? (
           <DailyDetailPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
+        ) : recommendationsOpen && data ? (
+          <RecommendationsPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setRecommendationsOpen(false)} onRowClick={(row) => setDrawer({ row, periodMonths })} />
         ) : (
           <>
         <section className="premium-card rounded-[1.6rem] p-4">
@@ -401,8 +404,9 @@ function App() {
               </ChartCard>
             </section>
 
-            <section className="grid gap-4">
+            <section className="grid cursor-pointer gap-4" role="button" tabIndex={0} onClick={() => setRecommendationsOpen(true)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setRecommendationsOpen(true); }}>
               <ChartCard title={titleWithScope('Inteligencia de Inventario')}>
+                <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-black text-red-800">Click para ver recomendaciones de todos los productos</div>
                 <div className="space-y-3">
                   {data.rows.slice(0, 5).map((row) => (
                     <div key={row.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
@@ -1206,6 +1210,58 @@ function DataSection({
         </div>
       )}
     </div>
+  );
+}
+
+function RecommendationsPage({ data, scopeTitle, periodLabel, onClose, onRowClick }: { data: DashboardResponse; scopeTitle: string; periodLabel: string; onClose: () => void; onRowClick: (row: ProductRow) => void }) {
+  const priority = (row: ProductRow) => row.inventorySignal === 'Sobrestock' ? 0 : row.inventorySignal === 'Atención' ? 1 : 2;
+  const rows = [...data.rows].sort((a, b) => priority(a) - priority(b) || b.salesXMonths - a.salesXMonths || a.description.localeCompare(b.description, 'es'));
+
+  return (
+    <section className="premium-card rounded-[1.6rem] p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.25em] text-corporateRed">Recomendaciones de inventario</div>
+          <h2 className="text-2xl font-black uppercase text-slate-900">{scopeTitle}</h2>
+          <div className="text-sm font-bold text-slate-600">Periodo: {periodLabel}</div>
+        </div>
+        <button onClick={onClose} className="rounded-full border border-red-200 bg-white px-5 py-2.5 font-black text-slate-950 shadow-lg transition hover:border-corporateRed hover:bg-red-50">Volver al dashboard</button>
+      </div>
+
+      <div className="mb-3 grid gap-3 sm:grid-cols-3">
+        <DarkMetric label="Sobrestock" value={rows.filter((row) => row.inventorySignal === 'Sobrestock').length.toLocaleString('es-EC')} />
+        <DarkMetric label="Atención" value={rows.filter((row) => row.inventorySignal === 'Atención').length.toLocaleString('es-EC')} />
+        <DarkMetric label="Normal" value={rows.filter((row) => row.inventorySignal === 'Normal').length.toLocaleString('es-EC')} />
+      </div>
+
+      <div className="max-h-[calc(100vh-14rem)] overflow-auto scrollbar-thin">
+        <table className="min-w-[1500px] w-full border-separate border-spacing-y-1 text-xs">
+          <thead className="sticky top-0 z-20 bg-white shadow-lg shadow-slate-900/10">
+            <tr>
+              {['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total', 'Rotación', 'Estado', 'Recomendación'].map((label) => (
+                <th key={label} className="whitespace-nowrap border-b border-red-200 bg-white px-3 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} onClick={() => onRowClick(row)} className={`cursor-pointer transition hover:bg-red-50 ${Number(row.stockTotal ?? row.stock) <= 0 ? 'zero-stock-row' : 'bg-white'}`}>
+                <td className="rounded-l-xl px-3 py-3 font-black text-[#ffbe1b]">{row.code}</td>
+                <td className="max-w-[420px] whitespace-normal px-3 py-3 font-black leading-snug">{row.description}</td>
+                <td className="px-3 py-3">{row.brand}</td>
+                <td className="px-3 py-3">{row.category}</td>
+                <td className="px-3 py-3">{row.type}</td>
+                <td className="px-3 py-3 font-black text-corporateRed">{twoDecimals(row.salesXMonths)}</td>
+                <td className="px-3 py-3 font-black">{row.stockTotal}</td>
+                <td className="px-3 py-3 font-black">{row.rotation.toFixed(2)}</td>
+                <td className="px-3 py-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${badgeColor(row.inventorySignal)}`}>{row.inventorySignal}</span></td>
+                <td className="rounded-r-xl px-3 py-3 font-bold text-slate-700">{row.recommendation}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
