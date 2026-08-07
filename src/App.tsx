@@ -54,7 +54,7 @@ const exceedsOneYear = (start: string, end: string) => {
   const endDate = new Date(end);
   const limit = new Date(startDate);
   limit.setFullYear(limit.getFullYear() + 1);
-  return endDate >= limit;
+  return endDate > limit;
 };
 
 function App() {

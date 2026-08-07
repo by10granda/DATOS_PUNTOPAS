@@ -38,10 +38,10 @@ const resolveDateRange = (req: express.Request, periodMonths: PeriodMonths) => {
     if (dayjs(dateEnd).isBefore(dayjs(dateStart))) {
       throw new Error('La fecha final no puede ser menor que la fecha inicial.');
     }
-    if (countInclusiveMonths(dateStart, dateEnd) > maxRangeMonths) {
+    if (dayjs(dateEnd).isAfter(dayjs(dateStart).add(1, 'year'))) {
       throw new Error('La consulta manual no puede superar 1 año.');
     }
-    return { dateStart, dateEnd, effectivePeriodMonths: countInclusiveMonths(dateStart, dateEnd) as PeriodMonths };
+    return { dateStart, dateEnd, effectivePeriodMonths: Math.min(maxRangeMonths, countInclusiveMonths(dateStart, dateEnd)) as PeriodMonths };
   }
 
   const today = dayjs().format('YYYY-MM-DD');

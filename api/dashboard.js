@@ -12,8 +12,8 @@ const resolveDateRange = (query, periodMonths) => {
   if (dateStart || dateEnd) {
     if (!dateStart || !dateEnd || !dayjs(dateStart).isValid() || !dayjs(dateEnd).isValid()) throw new Error('Debe enviar fecha inicial y fecha final validas.');
     if (dayjs(dateEnd).isBefore(dayjs(dateStart))) throw new Error('La fecha final no puede ser menor que la fecha inicial.');
-    if (countInclusiveMonths(dateStart, dateEnd) > 12) throw new Error('La consulta manual no puede superar 1 año.');
-    return { dateStart, dateEnd, effectivePeriodMonths: countInclusiveMonths(dateStart, dateEnd) };
+    if (dayjs(dateEnd).isAfter(dayjs(dateStart).add(1, 'year'))) throw new Error('La consulta manual no puede superar 1 año.');
+    return { dateStart, dateEnd, effectivePeriodMonths: Math.min(12, countInclusiveMonths(dateStart, dateEnd)) };
   }
   const today = dayjs().format('YYYY-MM-DD');
   return { dateStart: today, dateEnd: today, effectivePeriodMonths: periodMonths };
