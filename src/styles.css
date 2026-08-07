@@ -72,11 +72,17 @@ body {
 
 .zero-stock-row,
 .zero-stock-row * {
-  color: #fecaca !important;
+  color: #ffffff !important;
 }
 
 .zero-stock-row td {
-  border-color: rgba(248, 113, 113, 0.35) !important;
+  background: #b00000 !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.zero-stock-row {
+  background: #b00000 !important;
+  box-shadow: 0 10px 28px rgba(176, 0, 0, 0.28) !important;
 }
 
 .premium-shell main [class*="bg-[#061a24]"],
@@ -112,6 +118,23 @@ body {
   background: #ffffff !important;
   color: #0f172a;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.premium-shell main tbody tr.zero-stock-row,
+.premium-shell main .daily-detail-row.zero-stock-row,
+.premium-shell main tbody tr.zero-stock-row:hover,
+.premium-shell main .daily-detail-row.zero-stock-row:hover {
+  background: #b00000 !important;
+  color: #ffffff !important;
+}
+
+.premium-shell main tbody tr.zero-stock-row td,
+.premium-shell main .daily-detail-row.zero-stock-row td,
+.premium-shell main tbody tr.zero-stock-row span,
+.premium-shell main .daily-detail-row.zero-stock-row span,
+.premium-shell main tbody tr.zero-stock-row div,
+.premium-shell main .daily-detail-row.zero-stock-row div {
+  color: #ffffff !important;
 }
 
 .premium-shell main tbody tr:hover,
