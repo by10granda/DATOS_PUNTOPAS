@@ -1290,7 +1290,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const warehouseColumns = Array.from(new Set(visibleRows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
 
   return (
-    <section className="overflow-hidden rounded-[1.5rem] bg-[#061a24] text-white shadow-2xl">
+    <section className="overflow-visible rounded-[1.5rem] bg-[#061a24] text-white shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.25em] text-[#18b8b1]">Página detalle ejecutivo diario</div>
@@ -1358,12 +1358,12 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           </div>
         </div>
 
-        <div className="overflow-auto px-4 pb-4 pt-3 scrollbar-thin">
+        <div className="overflow-x-auto px-4 pb-4 pt-3 scrollbar-thin">
           <table className="min-w-[3600px] w-full table-auto border-separate border-spacing-y-1 text-xs">
-            <thead className="sticky top-0 z-10 bg-[#061a24]">
+            <thead className="sticky top-0 z-30 bg-white shadow-lg shadow-slate-900/10">
               <tr>
                 {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
-                  <th key={label} className="whitespace-nowrap border-b border-white/10 px-2.5 py-2 text-left font-black uppercase tracking-wide text-cyan-100/70">{label}</th>
+                  <th key={label} className="sticky top-0 z-30 whitespace-nowrap border-b border-red-200 bg-white px-2.5 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
                 ))}
               </tr>
             </thead>
