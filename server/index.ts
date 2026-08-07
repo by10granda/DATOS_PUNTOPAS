@@ -80,7 +80,7 @@ app.get('/api/dashboard', async (req, res) => {
       return;
     }
 
-    const products = await loadSiapeProducts(dateStart, dateEnd);
+    const products = await loadSiapeProducts(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week');
     const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd });
     res.json(payload);
   } catch (error) {

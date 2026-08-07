@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const params = { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd };
     if (!branch) return res.status(200).json(buildDashboard([], params));
     if (branch !== 'ALMACEN PAS') return res.status(400).json({ message: 'Actualmente solo esta habilitada la API de ALMACEN PAS.' });
-    const products = await loadSiapeProducts(dateStart, dateEnd);
+    const products = await loadSiapeProducts(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week');
     return res.status(200).json(buildDashboard(products, params));
   } catch (error) {
     return res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar datos desde SIAPE', branches });

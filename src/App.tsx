@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent, percentTwo, twoDecimals } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, twoDecimals } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3, 6, 12];
 const showAssistantWidget = false;
@@ -1288,6 +1288,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const soldAverageMargin = visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0;
   const soldUnits = visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0);
   const warehouseColumns = Array.from(new Set(visibleRows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
+  const monthlyQuantityColumns = monthQuantityColumns(visibleRows);
 
   return (
     <section className="overflow-visible rounded-[1.5rem] bg-[#061a24] text-white shadow-2xl">
@@ -1362,7 +1363,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           <table className="min-w-[3000px] w-full table-auto border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-30 bg-white shadow-lg shadow-slate-900/10">
               <tr>
-                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
+                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
                   <th key={label} className="sticky top-0 z-30 whitespace-nowrap border-b border-red-200 bg-white px-2.5 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
                 ))}
               </tr>
@@ -1381,6 +1382,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                   <td className="px-2.5 py-2">{row.category}</td>
                   <td className="px-2.5 py-2">{row.type}</td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.salesXMonths}</td>
+                  {monthlyQuantityColumns.map((month) => <td key={`${row.id}-${month}`} className="px-2.5 py-2 font-black text-corporateRed">{twoDecimals(monthQuantity(row, month))}</td>)}
                   <td className="whitespace-nowrap px-2.5 py-2">{row.saleDate || 'NO CONSTA'}</td>
                   <td className="px-2.5 py-2 font-bold">{money(row.pricePuntoPas)}</td>
                   <td className="px-2.5 py-2 font-bold">{row.pricePvp === null ? 'NO CONSTA' : money(row.pricePvp)}</td>
@@ -1401,7 +1403,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={22 + warehouseColumns.length} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
+                  <td colSpan={22 + warehouseColumns.length + monthlyQuantityColumns.length} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
                 </tr>
               )}
             </tbody>

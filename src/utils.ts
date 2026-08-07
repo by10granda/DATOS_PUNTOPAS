@@ -11,9 +11,13 @@ export const twoDecimals = (value: number) => value.toLocaleString('es-EC', { mi
 
 type ExportOptions = { periodLabel?: string };
 
+export const monthQuantityColumns = (rows: ProductRow[]) => Array.from(new Set(rows.flatMap((row) => row.monthlySales.map((sale) => sale.monthLabel).filter((month): month is string => Boolean(month)))));
+export const monthQuantity = (row: ProductRow, month: string) => row.monthlySales.filter((sale) => sale.monthLabel === month).reduce((sum, sale) => sum + sale.quantity, 0);
+
 const buildProductExport = (rows: ProductRow[]) => {
   const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
-  const headers = ['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'];
+  const monthlyColumns = monthQuantityColumns(rows);
+  const headers = ['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'];
   const body = rows.map((row) => [
     row.code,
     row.description,
@@ -22,6 +26,7 @@ const buildProductExport = (rows: ProductRow[]) => {
     row.category,
     row.type,
     row.salesXMonths,
+    ...monthlyColumns.map((month) => monthQuantity(row, month)),
     row.saleDate || 'NO CONSTA',
     row.pricePuntoPas,
     row.pricePvp ?? 'NO CONSTA',
