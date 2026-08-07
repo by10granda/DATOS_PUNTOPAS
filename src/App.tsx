@@ -1320,7 +1320,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <DarkMetric label="Total Ventas" value={money(totalSalesMoney)} />
-            <DarkMetric label="Ganancia día" value={money(soldProfit)} />
+            <DarkMetric label="Ganancia" value={money(soldProfit)} />
             <DarkMetric label="Media margen" value={percent(soldAverageMargin)} />
             <DarkMetric label="Productos vendidos" value={rows.length.toLocaleString('es-EC')} />
             <DarkMetric label="Unidades" value={twoDecimals(soldUnits)} />
@@ -1362,7 +1362,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           <table className="min-w-[3000px] w-full table-auto border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-30 bg-white shadow-lg shadow-slate-900/10">
               <tr>
-                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida Día', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
+                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
                   <th key={label} className="sticky top-0 z-30 whitespace-nowrap border-b border-red-200 bg-white px-2.5 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
                 ))}
               </tr>
