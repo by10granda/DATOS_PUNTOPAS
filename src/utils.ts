@@ -81,6 +81,58 @@ export const exportPdf = (rows: ProductRow[], title: string, options: ExportOpti
   doc.save(`${title}.pdf`);
 };
 
+const buildRecommendationExport = (rows: ProductRow[]) => {
+  const headers = ['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total', 'Rotación', 'Estado', 'Recomendación'];
+  const body = rows.map((row) => [
+    row.code,
+    row.description,
+    row.brand,
+    row.category,
+    row.type,
+    Number(row.salesXMonths.toFixed(2)),
+    row.stockTotal,
+    Number(row.rotation.toFixed(2)),
+    row.inventorySignal,
+    row.recommendation,
+  ]);
+  return { headers, body };
+};
+
+export const exportRecommendationsExcel = (rows: ProductRow[], fileName: string, options: ExportOptions = {}) => {
+  const { headers, body } = buildRecommendationExport(rows);
+  const titleRows = options.periodLabel ? [
+    ['RECOMENDACIONES DE INVENTARIO'],
+    [`Rango de fechas: ${options.periodLabel}`],
+    [],
+  ] : [];
+  const worksheet = XLSX.utils.aoa_to_sheet([...titleRows, headers, ...body]);
+  worksheet['!cols'] = headers.map((header) => ({ wch: header === 'Descripción' || header === 'Recomendación' ? 48 : Math.max(12, Math.min(24, header.length + 4)) }));
+  if (options.periodLabel) worksheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } }];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Recomendaciones');
+  XLSX.writeFile(workbook, `${fileName}.xlsx`);
+};
+
+export const exportRecommendationsPdf = (rows: ProductRow[], title: string, options: ExportOptions = {}) => {
+  const { headers, body } = buildRecommendationExport(rows);
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+  doc.setFontSize(14);
+  doc.text(title, 14, 14);
+  if (options.periodLabel) {
+    doc.setFontSize(9);
+    doc.text(`Rango de fechas: ${options.periodLabel}`, 14, 20);
+  }
+  autoTable(doc, {
+    startY: options.periodLabel ? 25 : 20,
+    styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+    headStyles: { fillColor: [255, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    head: [headers],
+    body,
+  });
+  doc.save(`${title}.pdf`);
+};
+
 export const exportOverviewExcel = (rows: ProductOverviewRow[], fileName: string) => {
   const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const data = rows.map((row) => ({

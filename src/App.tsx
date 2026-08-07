@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, twoDecimals } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, twoDecimals } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3, 6, 12];
 const showAssistantWidget = false;
@@ -1225,7 +1225,11 @@ function RecommendationsPage({ data, scopeTitle, periodLabel, onClose, onRowClic
           <h2 className="text-2xl font-black uppercase text-slate-900">{scopeTitle}</h2>
           <div className="text-sm font-bold text-slate-600">Periodo: {periodLabel}</div>
         </div>
-        <button onClick={onClose} className="rounded-full border border-red-200 bg-white px-5 py-2.5 font-black text-slate-950 shadow-lg transition hover:border-corporateRed hover:bg-red-50">Volver al dashboard</button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => exportRecommendationsExcel(rows, 'recomendaciones-inventario', { periodLabel })} className="rounded-full border border-red-200 bg-white px-5 py-2.5 font-black text-slate-950 shadow-lg transition hover:border-corporateRed hover:bg-red-50">Exportar Excel</button>
+          <button onClick={() => exportRecommendationsPdf(rows, 'Recomendaciones de Inventario', { periodLabel })} className="rounded-full border border-red-200 bg-white px-5 py-2.5 font-black text-slate-950 shadow-lg transition hover:border-corporateRed hover:bg-red-50">Exportar PDF</button>
+          <button onClick={onClose} className="rounded-full border border-red-200 bg-white px-5 py-2.5 font-black text-slate-950 shadow-lg transition hover:border-corporateRed hover:bg-red-50">Volver al dashboard</button>
+        </div>
       </div>
 
       <div className="mb-3 grid gap-3 sm:grid-cols-3">
