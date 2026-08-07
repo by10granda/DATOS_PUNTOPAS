@@ -1128,6 +1128,7 @@ function DataSection({
     { key: 'code', label: 'Código' },
     { key: 'description', label: 'Descripción' },
     { key: 'stockTotal', label: 'Stock Total' },
+    { key: 'lastPurchaseQuantity', label: 'Cantidad Última Compra' },
     { key: 'salesXMonths', label: 'Cantidad Vendida' },
     { key: 'saleDate', label: 'fecha_venta' },
     { key: 'totalProfit', label: 'Ganancia Total' },
@@ -1164,7 +1165,7 @@ function DataSection({
                     {column.label}
                     {sortKey === column.key && <span className="ml-2 text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>}
                   </th>
-                  {column.key === 'stockTotal' && warehouseColumns.map((warehouse) => (
+                  {column.key === 'lastPurchaseQuantity' && warehouseColumns.map((warehouse) => (
                     <th key={warehouse} className="whitespace-nowrap border-b border-slate-200 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">{warehouse}</th>
                   ))}
                 </Fragment>
@@ -1177,6 +1178,7 @@ function DataSection({
                 <td className="whitespace-nowrap rounded-l-xl px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{row.code}</td>
                 <td className="max-w-[240px] truncate px-2.5 py-2">{row.description}</td>
                 <td className="px-2.5 py-2 font-black">{row.stockTotal}</td>
+                <td className="px-2.5 py-2 font-black">{row.lastPurchaseQuantity}</td>
                 {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                 <td className="px-2.5 py-2">{row.salesXMonths}</td>
                 <td className="whitespace-nowrap px-2.5 py-2">{row.saleDate || 'NO CONSTA'}</td>
