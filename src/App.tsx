@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
 import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, twoDecimals } from './utils';
@@ -212,7 +212,6 @@ function App() {
   ].filter(Boolean).join(' | ');
   const activePeriodLabel = queryMode === 'manual' && appliedManualRange ? `${appliedManualRange.start} a ${appliedManualRange.end}` : 'Día actual';
   const dataScopeTitle = selectedContext || 'Vista general de ALMACEN PAS';
-  const participationPeriodTitle = queryMode === 'manual' && appliedManualRange ? `Participación del ${appliedManualRange.start} al ${appliedManualRange.end}` : 'Participación diaria';
   const titleWithScope = (title: string) => `${title} - ${dataScopeTitle} - ${activePeriodLabel}`;
   const suggestions: SearchSuggestion[] = search.trim().length >= 2 ? [
     ...products.flatMap((item) => item.code === 'TODOS' ? [] : [
@@ -387,21 +386,7 @@ function App() {
           <>
             <ExecutiveSummary data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onRowClick={(row) => setDrawer({ row, periodMonths })} onTrendClick={() => setDailyDetailOpen(true)} />
 
-            <section className="grid gap-4 xl:grid-cols-2">
-              <ChartCard title={titleWithScope('Total Productos Vendidos')}>
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={data.barSeries}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="ventas" radius={[10, 10, 0, 0]}>
-                      {data.barSeries.map((entry, index) => <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
+            <section className="grid gap-4">
               <ChartCard title={titleWithScope('Ventas por hora')}>
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={data.monthlySeries}>
@@ -416,28 +401,7 @@ function App() {
               </ChartCard>
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-              <ChartCard title={titleWithScope(participationPeriodTitle)}>
-                <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie data={data.donutSeries} dataKey="value" nameKey="name" outerRadius={100} innerRadius={70} label>
-                        {data.donutSeries.map((entry, index) => <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-col justify-center gap-3">
-                    {data.donutSeries.map((item, index) => (
-                        <div key={item.name} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
-                        <span className="font-semibold">{item.name}</span>
-                        <span className="font-black" style={{ color: chartColors[index % chartColors.length] }}>{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </ChartCard>
-
+            <section className="grid gap-4">
               <ChartCard title={titleWithScope('Inteligencia de Inventario')}>
                 <div className="space-y-3">
                   {data.rows.slice(0, 5).map((row) => (
