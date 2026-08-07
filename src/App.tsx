@@ -275,13 +275,13 @@ function App() {
               <button
                 key={branch.name}
                 onClick={() => setSelectedBranch(branch.name)}
-                className={`group relative overflow-hidden rounded-[1.4rem] border p-4 text-left transition duration-300 ${selectedBranch === branch.name ? 'border-corporateGreen bg-gradient-to-br from-corporateBlue to-slate-950 text-white shadow-2xl shadow-corporateBlue/25' : 'border-slate-200 bg-white/80 hover:-translate-y-1 hover:border-corporateBlue hover:shadow-xl dark:border-slate-700 dark:bg-slate-800/80'}`}
+                className={`group relative overflow-hidden rounded-[1.4rem] border bg-white p-4 text-left text-slate-950 transition duration-300 hover:-translate-y-1 hover:shadow-xl ${selectedBranch === branch.name ? 'border-2 border-corporateRed shadow-2xl shadow-red-100' : 'border-slate-200 hover:border-corporateRed'}`}
               >
                 <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-full bg-corporateRed/10 transition group-hover:bg-corporateRed/20" />
                 <div className="relative text-xs font-black uppercase tracking-[0.24em] opacity-70">Sucursal</div>
                 <div className="mt-2 text-xl font-black">{branch.name}</div>
                 <div className="relative mt-5 h-1.5 overflow-hidden rounded-full bg-slate-200/60 dark:bg-slate-700">
-                  <div className={`h-full rounded-full ${selectedBranch === branch.name ? 'bg-corporateGreen' : 'bg-corporateBlue'}`} style={{ width: '68%' }} />
+                  <div className={`h-full rounded-full ${selectedBranch === branch.name ? 'bg-corporateRed' : 'bg-slate-300'}`} style={{ width: '68%' }} />
                 </div>
               </button>
             ))}

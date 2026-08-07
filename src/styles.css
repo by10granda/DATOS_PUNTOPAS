@@ -140,3 +140,30 @@ body {
 .premium-shell main textarea::placeholder {
   color: #94a3b8 !important;
 }
+
+.premium-shell main button:not(.recharts-tooltip-cursor) {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  color: #111827;
+}
+
+.premium-shell main button:not(.recharts-tooltip-cursor):hover {
+  border-color: #ff0000;
+  background-color: #fff7f7;
+  color: #111827;
+}
+
+.premium-shell main button[class*="bg-corporateGreen"],
+.premium-shell main button[class*="bg-corporateBlue"],
+.premium-shell main button[class*="bg-corporateRed"] {
+  background-color: #ffffff !important;
+  border: 2px solid #ff0000 !important;
+  color: #111827 !important;
+}
+
+.premium-shell main button span[class*="bg-corporateBlue"],
+.premium-shell main button span[class*="bg-corporateRed"],
+.premium-shell main button span[class*="bg-corporateGreen"] {
+  background-color: #fee2e2 !important;
+  color: #7f1d1d !important;
+}
