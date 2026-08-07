@@ -1038,7 +1038,7 @@ function ExecutiveSummary({ data, scopeTitle, periodLabel, onRowClick, onTrendCl
             <ResponsiveContainer width="100%" height={190}>
               <LineChart data={data.hourlySeries}>
                 <CartesianGrid stroke="#31505c" vertical={false} opacity={0.35} />
-                <XAxis dataKey="hour" stroke="#9dc7d0" fontSize={11} />
+                <XAxis dataKey="hour" stroke="#9dc7d0" fontSize={10} interval={0} />
                 <YAxis stroke="#9dc7d0" fontSize={11} />
                 <Tooltip />
                 <Line type="monotone" dataKey="quantity" stroke="#18b8b1" strokeWidth={4} dot={{ r: 4, fill: '#ffbe1b' }} activeDot={{ r: 7 }} />
