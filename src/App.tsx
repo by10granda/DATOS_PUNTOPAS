@@ -1298,8 +1298,8 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             <div className="text-sm font-bold text-cyan-100/60">Periodo: {periodLabel}</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => exportExcel(visibleRows, 'detalle-ejecutivo-diario')} className="rounded-full bg-[#18b8b1] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
-            <button onClick={() => exportPdf(visibleRows, 'Detalle Ejecutivo Diario')} className="rounded-full bg-[#ffbe1b] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
+            <button onClick={() => exportExcel(visibleRows, 'detalle-ejecutivo-diario', { periodLabel })} className="rounded-full bg-[#18b8b1] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
+            <button onClick={() => exportPdf(visibleRows, 'Detalle Ejecutivo Diario', { periodLabel })} className="rounded-full bg-[#ffbe1b] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
             <button onClick={onClose} className="rounded-full bg-white px-5 py-2 font-black text-[#061a24]">Volver al dashboard</button>
           </div>
         </div>
