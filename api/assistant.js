@@ -99,7 +99,7 @@ const answerDirectly = async (question, periodMonths) => {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Método no permitido.' });
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
-  const periodMonths = Math.min(3, Math.max(1, Number(req.body?.periodMonths ?? 3)));
+  const periodMonths = Math.min(12, Math.max(1, Number(req.body?.periodMonths ?? 3)));
   if (!question) return res.status(400).json({ message: 'Debe enviar una pregunta.' });
 
   try {

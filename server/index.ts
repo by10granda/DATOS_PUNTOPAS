@@ -18,7 +18,7 @@ app.use(morgan('dev'));
 
 const branches: Branch[] = [{ name: 'ALMACEN PAS' }];
 
-const maxRangeMonths = 3;
+const maxRangeMonths = 12;
 const overviewCache = new Map<string, { generatedAt: string; payload: unknown }>();
 
 const countInclusiveMonths = (dateStart: string, dateEnd: string) => {
@@ -39,7 +39,7 @@ const resolveDateRange = (req: express.Request, periodMonths: PeriodMonths) => {
       throw new Error('La fecha final no puede ser menor que la fecha inicial.');
     }
     if (countInclusiveMonths(dateStart, dateEnd) > maxRangeMonths) {
-      throw new Error('La consulta manual no puede superar 3 meses.');
+      throw new Error('La consulta manual no puede superar 1 año.');
     }
     return { dateStart, dateEnd, effectivePeriodMonths: countInclusiveMonths(dateStart, dateEnd) as PeriodMonths };
   }
@@ -58,7 +58,7 @@ app.get('/api/branches', (_req, res) => {
 
 app.get('/api/dashboard', async (req, res) => {
   const branch = typeof req.query.branch === 'string' && req.query.branch.length > 0 ? req.query.branch : null;
-  const periodMonths = Math.min(3, Math.max(1, Number(req.query.periodMonths ?? 3))) as PeriodMonths;
+  const periodMonths = Math.min(12, Math.max(1, Number(req.query.periodMonths ?? 3))) as PeriodMonths;
   const search = typeof req.query.search === 'string' ? req.query.search : '';
   const category = typeof req.query.category === 'string' && req.query.category.length > 0 ? req.query.category : 'TODOS';
   const brand = typeof req.query.brand === 'string' && req.query.brand.length > 0 ? req.query.brand : 'TODAS';
@@ -95,7 +95,7 @@ const resolveOverviewRange = (months: PeriodMonths) => {
 };
 
 app.get('/api/product-overview', async (req, res) => {
-  const periodMonths = Math.min(3, Math.max(1, Number(req.query.periodMonths ?? 3))) as PeriodMonths;
+  const periodMonths = Math.min(12, Math.max(1, Number(req.query.periodMonths ?? 3))) as PeriodMonths;
   const force = req.query.refresh === '1';
   const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
   const cacheKey = `ALMACEN PAS-${periodMonths}-${dateStart}-${dateEnd}-${dayjs().hour() >= 1 ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD')}`;
@@ -210,7 +210,7 @@ const answerDirectly = async (question: string, periodMonths: PeriodMonths) => {
 
 app.post('/api/assistant', async (req, res) => {
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
-  const periodMonths = Math.min(3, Math.max(1, Number(req.body?.periodMonths ?? 3))) as PeriodMonths;
+  const periodMonths = Math.min(12, Math.max(1, Number(req.body?.periodMonths ?? 3))) as PeriodMonths;
   if (!question) {
     res.status(400).json({ message: 'Debe enviar una pregunta.' });
     return;

@@ -404,7 +404,7 @@ export const buildProductOverview = (products, params) => {
   return {
     branch: params.branch,
     periodMonths: params.periodMonths,
-    title: params.periodMonths === 3 ? 'TOTAL DE PRODUCTOS - VISTA GENERAL' : `TOTAL DE PRODUCTOS - ULTIMO${params.periodMonths > 1 ? 'S' : ''} ${params.periodMonths} MES${params.periodMonths > 1 ? 'ES' : ''}`,
+    title: params.periodMonths === 12 ? 'TOTAL DE PRODUCTOS - VISTA GENERAL' : `TOTAL DE PRODUCTOS - ULTIMO${params.periodMonths > 1 ? 'S' : ''} ${params.periodMonths} MES${params.periodMonths > 1 ? 'ES' : ''}`,
     dateStart: params.dateStart,
     dateEnd: params.dateEnd,
     periodLabel: `${dayjs(params.dateStart).format('DD MMMM YYYY')} - ${dayjs(params.dateEnd).format('DD MMMM YYYY')}`,

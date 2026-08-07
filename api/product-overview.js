@@ -13,7 +13,7 @@ const resolveOverviewRange = (months) => {
 };
 
 export default async function handler(req, res) {
-  const periodMonths = Math.min(3, Math.max(1, Number(queryValue(req.query?.periodMonths) ?? 3)));
+  const periodMonths = Math.min(12, Math.max(1, Number(queryValue(req.query?.periodMonths) ?? 3)));
   const force = queryValue(req.query?.refresh) === '1';
   const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
   const cacheDay = dayjs().hour() >= 1 ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD');

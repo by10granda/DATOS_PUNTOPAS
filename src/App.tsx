@@ -4,7 +4,7 @@ import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
 import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent, percentTwo } from './utils';
 
-const periodOptions: PeriodMonths[] = [1, 2, 3];
+const periodOptions: PeriodMonths[] = [1, 2, 3, 6, 12];
 const showAssistantWidget = false;
 const badgeColor = (signal: ProductRow['inventorySignal']) =>
   signal === 'Normal' ? 'bg-emerald-100 text-emerald-800' : signal === 'Atención' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
@@ -49,11 +49,11 @@ const subtractMonths = (months: number) => {
   return dateInput(date);
 };
 
-const exceedsThreeMonths = (start: string, end: string) => {
+const exceedsOneYear = (start: string, end: string) => {
   const startDate = new Date(start);
   const endDate = new Date(end);
   const limit = new Date(startDate);
-  limit.setMonth(limit.getMonth() + 3);
+  limit.setFullYear(limit.getFullYear() + 1);
   return endDate >= limit;
 };
 
@@ -147,8 +147,8 @@ function App() {
       setManualError('La fecha final no puede ser menor que la fecha inicial.');
       return;
     }
-    if (exceedsThreeMonths(manualStart, manualEnd)) {
-      setManualError('La consulta manual no puede superar 3 meses.');
+    if (exceedsOneYear(manualStart, manualEnd)) {
+      setManualError('La consulta manual no puede superar 1 año.');
       return;
     }
     setManualError(null);
@@ -703,7 +703,7 @@ function HistoricalModal({
           </label>
         </div>
 
-        <div className="mt-3 text-xs font-semibold text-slate-400">Límite operativo: máximo 3 meses por consulta.</div>
+        <div className="mt-3 text-xs font-semibold text-slate-400">Límite operativo: máximo 1 año por consulta.</div>
         {manualError && <div className="mt-4 rounded-xl border border-rose-400/30 bg-rose-950/40 px-3 py-2.5 text-sm font-bold text-rose-200">{manualError}</div>}
 
         <div className="mt-5 flex justify-end gap-3">
