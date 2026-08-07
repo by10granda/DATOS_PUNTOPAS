@@ -7,6 +7,7 @@ export const money = (value: number) => value.toLocaleString('es-EC', { style: '
 
 export const percent = (value: number) => `${value.toFixed(1)}%`;
 export const percentTwo = (value: number) => `${value.toFixed(2)}%`;
+export const twoDecimals = (value: number) => value.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const exportExcel = (rows: ProductRow[], fileName: string) => {
   const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));

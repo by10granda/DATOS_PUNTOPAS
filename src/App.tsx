@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BarChart, Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent, percentTwo } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, money, percent, percentTwo, twoDecimals } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3, 6, 12];
 const showAssistantWidget = false;
@@ -372,7 +372,7 @@ function App() {
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <StatCard label="Total Productos" value={data?.kpis.totalProducts ?? 0} />
-                  <StatCard label="Unidades Vendidas" value={data?.kpis.totalUnitsSold ?? 0} accent="green" />
+                  <StatCard label="Unidades Vendidas" value={twoDecimals(data?.kpis.totalUnitsSold ?? 0)} accent="green" />
                   <StatCard label="Ganancias Totales" value={money(data?.kpis.totalProfit ?? 0)} accent="blue" />
                 </div>
               </div>
@@ -840,7 +840,7 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Productos Vendidos" value={data.kpis.totalProductsSold} />
-        <StatCard label="Unidades Vendidas" value={data.kpis.totalUnitsSold} accent="green" />
+        <StatCard label="Unidades Vendidas" value={twoDecimals(data.kpis.totalUnitsSold)} accent="green" />
         <StatCard label="Dinero Vendido" value={money(data.kpis.totalRevenue)} accent="blue" />
         <StatCard label="Utilidad" value={money(data.kpis.totalProfit)} accent="green" />
         <StatCard label="Críticos Stock" value={data.kpis.criticalStockProducts} accent="blue" />
@@ -965,7 +965,7 @@ function ExecutiveSummary({ data, scopeTitle, periodLabel, onRowClick, onTrendCl
         <div className="space-y-4 border-b border-white/10 p-4 2xl:border-b-0 2xl:border-r">
           <div className="rounded-2xl bg-[#092935] p-4 shadow-inner shadow-black/20">
             <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/80">Ventas del periodo</div>
-            <div className="mt-3 text-4xl font-black tracking-tight text-white">{data.kpis.totalUnitsSold.toLocaleString('es-EC')}</div>
+            <div className="mt-3 text-4xl font-black tracking-tight text-white">{twoDecimals(data.kpis.totalUnitsSold)}</div>
             <div className="mt-1 text-sm text-cyan-100/65">Unidades vendidas</div>
           </div>
 
@@ -1323,7 +1323,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             <DarkMetric label="Ganancia día" value={money(soldProfit)} />
             <DarkMetric label="Media margen" value={percent(soldAverageMargin)} />
             <DarkMetric label="Productos vendidos" value={rows.length.toLocaleString('es-EC')} />
-            <DarkMetric label="Unidades" value={soldUnits.toLocaleString('es-EC')} />
+            <DarkMetric label="Unidades" value={twoDecimals(soldUnits)} />
           </div>
         </div>
 
