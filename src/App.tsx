@@ -295,21 +295,7 @@ function App() {
               <p className="text-sm text-slate-500 dark:text-slate-400">El dashboard principal consulta únicamente el día actual para operación diaria.</p>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-corporateGreen/50 bg-gradient-to-br from-slate-950 to-corporateBlue px-5 py-4 text-white shadow-xl">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Modo activo</div>
-              <div className="mt-1 text-lg font-black">Ventas de hoy</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white/75 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Actualización</div>
-              <div className="mt-1 text-lg font-black">Tiempo real</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white/75 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Detalle</div>
-              <div className="mt-1 text-lg font-black">Por hora</div>
-            </div>
-          </div>
-          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-slate-700 bg-slate-950/40 p-4">
+          <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-slate-700 bg-slate-950/40 p-4">
             <button onClick={() => setHistoricalOpen(true)} className="rounded-xl bg-corporateBlue px-5 py-2.5 font-black text-white shadow-lg transition hover:-translate-y-0.5">
               Elegir histórica de datos
             </button>
