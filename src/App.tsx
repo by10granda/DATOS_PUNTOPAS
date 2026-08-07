@@ -1358,7 +1358,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           </div>
         </div>
 
-        <div className="overflow-x-auto px-4 pb-4 pt-3 scrollbar-thin">
+        <div className="max-h-[calc(100vh-1rem)] overflow-auto px-4 pb-4 pt-3 scrollbar-thin">
           <table className="min-w-[3600px] w-full table-auto border-separate border-spacing-y-1 text-xs">
             <thead className="sticky top-0 z-30 bg-white shadow-lg shadow-slate-900/10">
               <tr>
