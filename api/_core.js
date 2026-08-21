@@ -1,6 +1,35 @@
 import dayjs from 'dayjs';
 
-export const branches = [{ name: 'ALMACEN PAS' }];
+export const branches = [
+  { name: 'ALMACEN PAS', hasImages: true },
+  { name: 'VARIEDADES PAS', hasImages: false }
+];
+
+const branchConfigs = {
+  'ALMACEN PAS': {
+    name: 'ALMACEN PAS',
+    baseUrl: () => process.env.SIAPE_API_BASE_URL,
+    user: () => process.env.SIAPE_API_USER,
+    password: () => process.env.SIAPE_API_PASSWORD
+  },
+  'VARIEDADES PAS': {
+    name: 'VARIEDADES PAS',
+    baseUrl: () => process.env.SIAPE_API_BASE_URL_SUCURSAL2 ?? 'https://api-sucursal2.distribuidor-puntopas.com',
+    user: () => process.env.SIAPE_API_USER_SUCURSAL2 ?? process.env.SIAPE_API_USER,
+    password: () => process.env.SIAPE_API_PASSWORD_SUCURSAL2 ?? process.env.SIAPE_API_PASSWORD
+  }
+};
+
+export const resolveBranchConfig = (branchName) => {
+  const config = branchConfigs[branchName];
+  if (!config) throw new Error(`Sucursal no habilitada: ${branchName}`);
+  const baseUrl = config.baseUrl();
+  if (!baseUrl) throw new Error(`No esta configurada la URL SIAPE para ${branchName}`);
+  const user = config.user();
+  const password = config.password();
+  if (!user || !password) throw new Error(`Faltan credenciales SIAPE para ${branchName}`);
+  return { name: config.name, baseUrl, user, password };
+};
 
 const numberValue = (value) => Number(value ?? 0) || 0;
 const textValue = (value, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
@@ -21,11 +50,11 @@ export const buildUrl = (baseUrl, path) => {
   return `${cleanBase}${cleanPath}`;
 };
 
-export const getToken = async (baseUrl) => {
+export const getToken = async (baseUrl, credentials) => {
   if (tokenCache?.baseUrl === baseUrl && tokenCache.expiresAt > Date.now()) return tokenCache.token;
 
-  const user = process.env.SIAPE_API_USER;
-  const password = process.env.SIAPE_API_PASSWORD;
+  const user = credentials?.user ?? process.env.SIAPE_API_USER;
+  const password = credentials?.password ?? process.env.SIAPE_API_PASSWORD;
   if (!user || !password) throw new Error('Faltan credenciales SIAPE_API_USER o SIAPE_API_PASSWORD');
 
   const response = await fetch(buildUrl(baseUrl, '/api/usuario/login'), {
@@ -35,7 +64,7 @@ export const getToken = async (baseUrl) => {
   });
   if (!response.ok) {
     if (tokenCache?.baseUrl === baseUrl) return tokenCache.token;
-    throw new Error(`No se pudo autenticar en SIAPE. Codigo ${response.status}`);
+    throw new Error(`No se pudo autenticar en SIAPE para ${credentials?.branch ?? 'la sucursal seleccionada'}. Codigo ${response.status}`);
   }
 
   const text = await response.text();
@@ -135,6 +164,35 @@ const getSaleUnitFactor = (item) => {
   return factors.length ? Math.max(...factors) : 1;
 };
 
+const packageFactorsFromDescription = (description = '') => {
+  const matches = [...description.matchAll(/(\d+(?:[.,]\d+)?)\s*(KG|KILO|KILOS|LB|LBS|MTS?|METROS?|UND|UNIDADES?)/gi)];
+  return matches.map((match) => Number(match[1].replace(',', '.'))).filter((factor) => factor > 1 && factor <= 10000);
+};
+
+const saleWeightedAverageNoIva = (sales) => {
+  const totalQuantity = sales.reduce((sum, sale) => sum + sale.quantity, 0);
+  if (totalQuantity <= 0) return 0;
+  return sales.reduce((sum, sale) => sum + ((sale.priceWithIva / 1.15) * sale.quantity), 0) / totalQuantity;
+};
+
+const resolveFractionalFactor = (description, catalogItem, publicPrice, salePrices) => {
+  const sales = salePrices.filter((sale) => sale.quantity > 0 && sale.priceWithIva > 0);
+  const averageSalePrice = saleWeightedAverageNoIva(sales);
+  if (!publicPrice || !averageSalePrice || averageSalePrice >= publicPrice * 0.75) return 1;
+
+  const candidates = Array.from(new Set([
+    ...packageFactorsFromDescription(description),
+    ...(catalogItem?.unidadesVenta?.map((unit) => numberValue(unit.factor)).filter((factor) => factor > 1 && factor <= 10000) ?? [])
+  ]));
+
+  const ranked = candidates.map((factor) => {
+    const expectedUnitPrice = publicPrice / factor;
+    return { factor, diff: Math.abs(expectedUnitPrice - averageSalePrice) / averageSalePrice };
+  }).sort((a, b) => a.diff - b.diff);
+
+  return ranked[0]?.diff <= 0.35 ? ranked[0].factor : 1;
+};
+
 const normalizeProviderCostWithIva = (rawCostWithIva, providerCost, publicPriceWithIva, unitFactor) => {
   const fallbackUnitCostWithIva = providerCost > 0 ? providerCost * 1.15 : rawCostWithIva;
   if (unitFactor > 1 && rawCostWithIva > publicPriceWithIva) {
@@ -145,10 +203,9 @@ const normalizeProviderCostWithIva = (rawCostWithIva, providerCost, publicPriceW
   return rawCostWithIva || fallbackUnitCostWithIva;
 };
 
-export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => {
-  const baseUrl = process.env.SIAPE_API_BASE_URL;
-  if (!baseUrl) throw new Error('SIAPE_API_BASE_URL no esta configurado');
-  const token = await getToken(baseUrl);
+export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', branchName = 'ALMACEN PAS') => {
+  const { name: branch, baseUrl, user, password } = resolveBranchConfig(branchName);
+  const token = await getToken(baseUrl, { user, password, branch });
   const [inventory, sales, catalog] = await Promise.all([
     fetchJson(baseUrl, '/api/item/reporteinventario', token),
     fetchSales(baseUrl, token, dateStart, dateEnd),
@@ -214,12 +271,18 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     const price = numberValue(priceLevel?.precio ?? catalogItem?.precioVentaSinImpuestos ?? priceByProduct.get(item.codigo));
     const publicPriceWithIva = numberValue(catalogItem?.precioVentaConImpuestos ?? price * 1.15);
     const rawProviderCostWithIva = numberValue(provider?.costo_producto_proveedor_iva ?? providerCost * 1.15);
-    const providerCostWithIva = normalizeProviderCostWithIva(rawProviderCostWithIva, providerCost, publicPriceWithIva, getSaleUnitFactor(catalogItem));
     const productSales = salesByProduct.get(item.codigo) ?? new Map();
     const productHourlySales = hourlySalesByProduct.get(item.codigo) ?? new Map();
     const productRevenue = revenueByProductBucket.get(item.codigo) ?? new Map();
-    const productProfit = profitByProductBucket.get(item.codigo) ?? new Map();
     const salePrices = salePricesWithIvaByProduct.get(item.codigo) ?? [];
+    const fractionalFactor = resolveFractionalFactor(item.descripcion, catalogItem, price, salePrices);
+    const providerCostWithIvaBase = normalizeProviderCostWithIva(rawProviderCostWithIva, providerCost, publicPriceWithIva, getSaleUnitFactor(catalogItem));
+    const effectiveProviderCost = fractionalFactor > 1 ? providerCost / fractionalFactor : providerCost;
+    const providerCostWithIva = fractionalFactor > 1 ? providerCostWithIvaBase / fractionalFactor : providerCostWithIvaBase;
+    const effectivePrice = fractionalFactor > 1 ? price / fractionalFactor : price;
+    const effectivePublicPriceWithIva = fractionalFactor > 1 ? publicPriceWithIva / fractionalFactor : publicPriceWithIva;
+    const effectivePuntoPasPrice = fractionalFactor > 1 ? numberValue(puntoPas?.precio ?? priceLevel?.precio) / fractionalFactor : numberValue(puntoPas?.precio ?? priceLevel?.precio);
+    const effectivePvpPrice = pvp ? (fractionalFactor > 1 ? numberValue(pvp.precio) / fractionalFactor : numberValue(pvp.precio)) : null;
     const marginSales = salePrices.filter((sale) => sale.quantity > 0 && sale.priceWithIva > 0);
     const soldQuantity = marginSales.reduce((sum, sale) => sum + sale.quantity, 0);
     const salesProfitWithProviderCost = salePrices.reduce((sum, sale) => sum + ((sale.priceWithIva - providerCostWithIva) * sale.quantity), 0);
@@ -228,8 +291,8 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
     const stockTotal = Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0);
 
     return {
-      id: `ALMACEN PAS-${item.codigo}`,
-      branch: 'ALMACEN PAS',
+      id: `${branch}-${item.codigo}`,
+      branch,
       code: item.codigo,
       description: item.descripcion,
       brand: item.marca ?? 'SIN MARCA',
@@ -237,20 +300,24 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour') => 
       category: item.categoria ?? 'SIN CATEGORIA',
       type: item.tipo ?? 'SIN TIPO',
       provider: provider?.nombre_proveedor ?? 'SIN PROVEEDOR',
-      cost: providerCost,
+      cost: effectiveProviderCost,
       costWithIva: providerCostWithIva,
-      price,
-      priceWithIva: publicPriceWithIva,
+      price: effectivePrice,
+      priceWithIva: effectivePublicPriceWithIva,
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
-      pricePuntoPas: numberValue(puntoPas?.precio ?? priceLevel?.precio),
-      pricePvp: pvp ? numberValue(pvp.precio) : null,
+      pricePuntoPas: effectivePuntoPasPrice,
+      pricePvp: effectivePvpPrice,
       stock: stockTotal,
       stockTotal,
       warehouseStocks,
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
       saleDate: saleDateByProduct.get(item.codigo) ?? '',
       lastPurchaseQuantity: numberValue(provider?.cantidad_ultima_compra_proveedor),
-      monthlySales: hours.map((hour) => ({ month: hour.label, quantity: productSales.get(hour.label) ?? 0, revenue: productRevenue.get(hour.label) ?? 0, profit: productProfit.get(hour.label) ?? 0, weekStart: hour.weekStart, monthLabel: hour.monthLabel })),
+      monthlySales: hours.map((hour) => {
+        const quantity = productSales.get(hour.label) ?? 0;
+        const revenue = productRevenue.get(hour.label) ?? 0;
+        return { month: hour.label, quantity, revenue, profit: revenue - (providerCostWithIva * quantity), weekStart: hour.weekStart, monthLabel: hour.monthLabel };
+      }),
       hourlySales: hoursOfDay.map((hour) => ({ month: hour, quantity: productHourlySales.get(hour) ?? 0 })),
       salesRevenueWithIva: revenueByProduct.get(item.codigo) ?? 0,
       salesProfitWithIva: salesProfitWithProviderCost,

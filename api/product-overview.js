@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { buildProductOverview, loadSiapeProducts } from './_core.js';
+import { buildProductOverview, loadSiapeProducts, resolveBranchConfig } from './_core.js';
 
 export const maxDuration = 60;
 
@@ -14,17 +14,19 @@ const resolveOverviewRange = (months) => {
 
 export default async function handler(req, res) {
   const periodMonths = Math.min(12, Math.max(1, Number(queryValue(req.query?.periodMonths) ?? 3)));
+  const branch = queryValue(req.query?.branch) ?? 'ALMACEN PAS';
   const force = queryValue(req.query?.refresh) === '1';
   const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
   const cacheDay = dayjs().hour() >= 1 ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD');
-  const cacheKey = `ALMACEN PAS-${periodMonths}-${dateStart}-${dateEnd}-${cacheDay}`;
+  const cacheKey = `${branch}-${periodMonths}-${dateStart}-${dateEnd}-${cacheDay}`;
 
   try {
+    resolveBranchConfig(branch);
     const cached = cache.get(cacheKey);
     if (cached && !force) return res.status(200).json(cached);
     const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
-    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey, generatedAt });
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey, generatedAt });
     cache.clear();
     cache.set(cacheKey, payload);
     return res.status(200).json(payload);

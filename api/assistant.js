@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { buildProductOverview, loadSiapeProducts } from './_core.js';
+import { buildProductOverview, loadSiapeProducts, resolveBranchConfig } from './_core.js';
 
 export const maxDuration = 60;
 
@@ -47,7 +47,7 @@ const askAI = async (question, context) => {
       model,
       temperature: 0.2,
       messages: [
-        { role: 'system', content: 'Eres un analista ejecutivo BI de ALMACEN PAS. Responde en espanol, claro, directo y basado unicamente en los datos enviados. Si falta un dato, dilo.' },
+        { role: 'system', content: `Eres un analista ejecutivo BI de ${context.sucursal}. Responde en espanol, claro, directo y basado unicamente en los datos enviados. Si falta un dato, dilo.` },
         { role: 'user', content: `Datos disponibles:\n${JSON.stringify(context)}\n\nPregunta: ${question}` }
       ]
     })
@@ -58,16 +58,16 @@ const askAI = async (question, context) => {
 };
 
 const formatMoney = (value) => value.toLocaleString('es-EC', { style: 'currency', currency: 'USD' });
-const answerDirectly = async (question, periodMonths) => {
+const answerDirectly = async (question, periodMonths, branch) => {
   const normalized = question.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
   if (['hola', 'buenos dias', 'buenas tardes', 'buenas noches'].includes(normalized.trim())) {
-    return 'Hola. Soy el asistente IA de ALMACEN PAS. Puedes preguntarme por ventas de hoy, inventario, proveedores, rotación, margen o productos con sobrestock.';
+    return `Hola. Soy el asistente IA de ${branch}. Puedes preguntarme por ventas de hoy, inventario, proveedores, rotación, margen o productos con sobrestock.`;
   }
 
   if (normalized.includes('hoy') && (normalized.includes('vend') || normalized.includes('venta'))) {
     const today = dayjs().format('YYYY-MM-DD');
-    const products = await loadSiapeProducts(today, today);
+    const products = await loadSiapeProducts(today, today, 'hour', branch);
     const rows = products
       .map((product) => ({
         code: product.code,
@@ -80,15 +80,15 @@ const answerDirectly = async (question, periodMonths) => {
       .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue);
     const totalUnits = rows.reduce((sum, row) => sum + row.quantity, 0);
     const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
-    if (rows.length === 0) return `Hoy ${today} no hay productos vendidos registrados en SIAPE para ALMACEN PAS.`;
+    if (rows.length === 0) return `Hoy ${today} no hay productos vendidos registrados en SIAPE para ${branch}.`;
     const detail = rows.slice(0, 15).map((row, index) => `${index + 1}. ${row.code} - ${row.description}: ${row.quantity} unidades, ${formatMoney(row.revenue)}, proveedor ${row.provider || 'N/D'}`).join('\n');
     return `Hoy ${today} se vendieron ${rows.length} productos distintos, con ${totalUnits} unidades y un total vendido de ${formatMoney(totalRevenue)}.\n\nProductos principales:\n${detail}`;
   }
 
   if (normalized.includes('sobrestock') || normalized.includes('sobre stock')) {
     const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
-    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant-direct', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey: `${branch}-assistant-direct`, generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
     const rows = payload.rows.filter((row) => row.inventoryState.toLowerCase().includes('sobrestock'));
     return `En el periodo ${payload.periodLabel} hay ${rows.length} productos con sobrestock.\n\nPrincipales por capital inmovilizado:\n${rows.slice(0, 10).map((row, index) => `${index + 1}. ${row.code} - ${row.description}: stock ${row.stockTotal}, cobertura ${row.coverageDays >= 999 ? '999+' : row.coverageDays.toFixed(0)} días, capital ${formatMoney(row.immobilizedCapital)}`).join('\n')}`;
   }
@@ -100,14 +100,16 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Método no permitido.' });
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   const periodMonths = Math.min(12, Math.max(1, Number(req.body?.periodMonths ?? 3)));
+  const branch = typeof req.body?.branch === 'string' && req.body.branch.trim() ? req.body.branch.trim() : 'ALMACEN PAS';
   if (!question) return res.status(400).json({ message: 'Debe enviar una pregunta.' });
 
   try {
-    const directAnswer = await answerDirectly(question, periodMonths);
+    resolveBranchConfig(branch);
+    const directAnswer = await answerDirectly(question, periodMonths, branch);
     if (directAnswer) return res.status(200).json({ answer: directAnswer, periodLabel: 'Respuesta directa con datos reales' });
     const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
-    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey: `${branch}-assistant`, generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
     const answer = await askAI(question, buildAssistantContext(payload));
     return res.status(200).json({ answer, periodLabel: payload.periodLabel });
   } catch (error) {

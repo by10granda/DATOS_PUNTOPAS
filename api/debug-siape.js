@@ -1,20 +1,32 @@
 import dayjs from 'dayjs';
-import { authHeaders, buildUrl, getToken } from './_core.js';
+import { authHeaders, buildUrl, getToken, resolveBranchConfig } from './_core.js';
 
 export const maxDuration = 60;
+const sucursal2DefaultUrl = 'https://api-sucursal2.distribuidor-puntopas.com';
 
 const safeText = async (response) => {
   const text = await response.text();
   return text.length > 300 ? `${text.slice(0, 300)}...` : text;
 };
 
-export default async function handler(_req, res) {
-  const baseUrl = process.env.SIAPE_API_BASE_URL;
+export default async function handler(req, res) {
+  const branch = typeof req.query?.branch === 'string' && req.query.branch.trim() ? req.query.branch.trim() : 'ALMACEN PAS';
+  let config;
+  try {
+    config = resolveBranchConfig(branch);
+  } catch (error) {
+    return res.status(400).json({ ok: false, message: error instanceof Error ? error.message : 'Sucursal no valida.', diagnostics: { branch } });
+  }
+  const { baseUrl, user, password } = config;
   const diagnostics = {
+    branch,
     env: {
       SIAPE_API_BASE_URL: Boolean(baseUrl),
-      SIAPE_API_USER: Boolean(process.env.SIAPE_API_USER),
-      SIAPE_API_PASSWORD: Boolean(process.env.SIAPE_API_PASSWORD),
+      SIAPE_API_BASE_URL_SUCURSAL2: Boolean(process.env.SIAPE_API_BASE_URL_SUCURSAL2 ?? sucursal2DefaultUrl),
+      SIAPE_API_USER: Boolean(user),
+      SIAPE_API_PASSWORD: Boolean(password),
+      SIAPE_API_USER_SUCURSAL2: Boolean(process.env.SIAPE_API_USER_SUCURSAL2),
+      SIAPE_API_PASSWORD_SUCURSAL2: Boolean(process.env.SIAPE_API_PASSWORD_SUCURSAL2),
       SIAPE_AUTH_HEADER: process.env.SIAPE_AUTH_HEADER ?? 'Authorization',
       SIAPE_AUTH_PREFIX: process.env.SIAPE_AUTH_PREFIX ?? 'Bearer',
       SIAPE_PAGE_SIZE: process.env.SIAPE_PAGE_SIZE ?? null,
@@ -27,7 +39,7 @@ export default async function handler(_req, res) {
   }
 
   try {
-    const token = await getToken(baseUrl);
+    const token = await getToken(baseUrl, { user, password });
     diagnostics.login = { ok: true };
     const today = dayjs().format('YYYY-MM-DD');
     const tomorrow = dayjs(today).add(1, 'day').format('YYYY-MM-DD');

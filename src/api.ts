@@ -44,8 +44,9 @@ export async function fetchDashboard(params: {
   return response.json();
 }
 
-export async function fetchProductOverview(periodMonths: number, refresh = false): Promise<ProductOverviewResponse> {
+export async function fetchProductOverview(periodMonths: number, refresh = false, branch = 'ALMACEN PAS'): Promise<ProductOverviewResponse> {
   const query = new URLSearchParams({ periodMonths: String(periodMonths) });
+  query.set('branch', branch);
   if (refresh) query.set('refresh', '1');
   const response = await fetch(apiUrl(`/api/product-overview?${query.toString()}`));
   if (!response.ok) {
@@ -60,7 +61,7 @@ export async function fetchProductOverview(periodMonths: number, refresh = false
   return response.json();
 }
 
-export async function askAssistant(params: { question: string; periodMonths: number }): Promise<{ answer: string; periodLabel: string }> {
+export async function askAssistant(params: { question: string; periodMonths: number; branch?: string | null }): Promise<{ answer: string; periodLabel: string }> {
   const response = await fetch(apiUrl('/api/assistant'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

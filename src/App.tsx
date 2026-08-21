@@ -26,6 +26,12 @@ type SearchSuggestion = {
 };
 
 const cloudinaryProductImage = (code: string) => `https://res.cloudinary.com/dy5t5q3dl/image/upload/v1782406564/${code}_E.png`;
+const branchHasImages = (branch: string) => branch !== 'VARIEDADES PAS';
+
+function ProductImage({ row, className }: { row: ProductRow; className: string }) {
+  if (!branchHasImages(row.branch)) return <span className="text-xs font-bold text-slate-400">Sin imagen</span>;
+  return <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className={className} />;
+}
 
 const normalizeSearch = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
@@ -174,6 +180,19 @@ function App() {
     setSelectedType('TODOS');
   };
 
+  const selectBranch = (branchName: string) => {
+    if (branchName === selectedBranch) return;
+    setSelectedBranch(branchName);
+    setData(null);
+    setError(null);
+    setLoading(true);
+    hasLoadedRef.current = false;
+    setDrawer(null);
+    setDailyDetailOpen(false);
+    setRecommendationsOpen(false);
+    clearSearchFilters();
+  };
+
   const displayedRows = [...(data?.rows ?? [])]
     .sort((a, b) => {
       const aValue = a[sortKey];
@@ -212,7 +231,7 @@ function App() {
     search ? `Búsqueda: ${search}` : null,
   ].filter(Boolean).join(' | ');
   const activePeriodLabel = queryMode === 'manual' && appliedManualRange ? `${appliedManualRange.start} a ${appliedManualRange.end}` : 'Día actual';
-  const dataScopeTitle = selectedContext || 'Vista general de ALMACEN PAS';
+  const dataScopeTitle = selectedContext || `Vista general de ${selectedBranch ?? 'ALMACEN PAS'}`;
   const titleWithScope = (title: string) => `${title} - ${dataScopeTitle} - ${activePeriodLabel}`;
   const suggestions: SearchSuggestion[] = search.trim().length >= 2 ? [
     ...products.flatMap((item) => item.code === 'TODOS' ? [] : [
@@ -276,7 +295,7 @@ function App() {
             ) : branches.map((branch) => (
               <button
                 key={branch.name}
-                onClick={() => setSelectedBranch(branch.name)}
+                onClick={() => selectBranch(branch.name)}
                 className={`group relative overflow-hidden rounded-[1.4rem] border bg-white p-4 text-left text-slate-950 transition duration-300 hover:-translate-y-1 hover:shadow-xl ${selectedBranch === branch.name ? 'border-2 border-corporateRed shadow-2xl shadow-red-100' : 'border-slate-200 hover:border-corporateRed'}`}
               >
                 <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-full bg-corporateRed/10 transition group-hover:bg-corporateRed/20" />
@@ -484,12 +503,12 @@ function App() {
 
       {drawer && <ProductDrawer row={drawer.row} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
       {historicalOpen && <HistoricalModal manualStart={manualStart} manualEnd={manualEnd} manualError={manualError} onStartChange={setManualStart} onEndChange={setManualEnd} onApply={applyManualRange} onClose={() => setHistoricalOpen(false)} />}
-      {showAssistantWidget && <AssistantWidget periodMonths={3} />}
+      {showAssistantWidget && <AssistantWidget periodMonths={3} branch={selectedBranch} />}
     </div>
   );
 }
 
-function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
+function AssistantWidget({ periodMonths, branch }: { periodMonths: PeriodMonths; branch: string | null }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
@@ -514,7 +533,7 @@ function AssistantWidget({ periodMonths }: { periodMonths: PeriodMonths }) {
     setLoading(true);
     setError(null);
     try {
-      const result = await askAssistant({ question: cleanQuestion, periodMonths });
+      const result = await askAssistant({ question: cleanQuestion, periodMonths, branch });
       setAnswer(result.answer);
       setPeriodLabel(result.periodLabel);
       speak(result.answer);
@@ -1385,7 +1404,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                 <Fragment key={row.id}>
                 <tr onClick={() => setSelectedRow(row)} className={`daily-detail-row cursor-pointer transition hover:bg-white/10 ${Number(row.stockTotal ?? row.stock) <= 0 ? 'zero-stock-row bg-red-950 ring-2 ring-red-500/60' : 'bg-white/5'}`}>
                   <td className="rounded-l-xl px-2.5 py-2">
-                    <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-10 w-10 rounded-lg object-cover" />
+                    <ProductImage row={row} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.code}</td>
                   <td className="whitespace-normal break-words px-2.5 py-3 font-bold leading-snug" style={{ minWidth: 520, width: 520, maxWidth: 520, overflow: 'visible', textOverflow: 'clip' }} title={row.description}>{row.description}</td>
@@ -1468,7 +1487,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
       <div className="h-full w-full max-w-4xl overflow-y-auto border-l border-cyan-100/15 bg-[#061a24] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 flex flex-col justify-between gap-3 border-b border-white/10 pb-4 lg:flex-row lg:items-start">
           <div className="flex gap-4">
-            <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-20 w-20 rounded-2xl border border-cyan-100/15 object-cover" />
+            <ProductImage row={row} className="h-20 w-20 rounded-2xl border border-cyan-100/15 object-cover" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-black uppercase tracking-[0.25em] text-[#18b8b1]">Variables del producto</div>
               <h3 className="mt-1 whitespace-normal break-words text-2xl font-black uppercase leading-tight">{row.description}</h3>
@@ -1508,7 +1527,7 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-sm">
       <div className="h-full w-full max-w-3xl overflow-y-auto bg-white p-4 shadow-2xl dark:bg-slate-950">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-20 w-20 rounded-2xl border border-slate-700 object-cover shadow-xl" />
+          <ProductImage row={row} className="h-20 w-20 rounded-2xl border border-slate-700 object-cover shadow-xl" />
           <div>
             <div className="text-xs font-black uppercase tracking-widest text-corporateRed">Descripción del producto</div>
             <h3 className="text-xl font-black text-corporateBlue dark:text-corporateGreen">{row.description}</h3>

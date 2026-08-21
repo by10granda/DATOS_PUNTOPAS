@@ -6,7 +6,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import dayjs from 'dayjs';
 import { buildDashboard, buildProductOverview } from './analytics';
-import { loadSiapeProducts } from './siape';
+import { loadSiapeProducts, resolveBranchConfig } from './siape';
 import type { Branch, PeriodMonths } from './types';
 
 const app = express();
@@ -16,7 +16,10 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
 
-const branches: Branch[] = [{ name: 'ALMACEN PAS' }];
+const branches: Branch[] = [
+  { name: 'ALMACEN PAS', hasImages: true },
+  { name: 'VARIEDADES PAS', hasImages: false }
+];
 
 const maxRangeMonths = 12;
 const overviewCache = new Map<string, { generatedAt: string; payload: unknown }>();
@@ -75,12 +78,8 @@ app.get('/api/dashboard', async (req, res) => {
       return;
     }
 
-    if (branch !== 'ALMACEN PAS') {
-      res.status(400).json({ message: 'Actualmente solo está habilitada la API de ALMACEN PAS.' });
-      return;
-    }
-
-    const products = await loadSiapeProducts(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week');
+    resolveBranchConfig(branch);
+    const products = await loadSiapeProducts(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
     const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd });
     res.json(payload);
   } catch (error) {
@@ -96,19 +95,21 @@ const resolveOverviewRange = (months: PeriodMonths) => {
 
 app.get('/api/product-overview', async (req, res) => {
   const periodMonths = Math.min(12, Math.max(1, Number(req.query.periodMonths ?? 3))) as PeriodMonths;
+  const branch = typeof req.query.branch === 'string' && req.query.branch.length > 0 ? req.query.branch : 'ALMACEN PAS';
   const force = req.query.refresh === '1';
   const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
-  const cacheKey = `ALMACEN PAS-${periodMonths}-${dateStart}-${dateEnd}-${dayjs().hour() >= 1 ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD')}`;
+  const cacheKey = `${branch}-${periodMonths}-${dateStart}-${dateEnd}-${dayjs().hour() >= 1 ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD')}`;
 
   try {
+    resolveBranchConfig(branch);
     const cached = overviewCache.get(cacheKey);
     if (cached && !force) {
       res.json(cached.payload);
       return;
     }
     const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
-    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey, generatedAt });
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey, generatedAt });
     overviewCache.clear();
     overviewCache.set(cacheKey, { generatedAt, payload });
     res.json(payload);
@@ -159,7 +160,7 @@ const askAI = async (question: string, context: unknown) => {
       model,
       temperature: 0.2,
       messages: [
-        { role: 'system', content: 'Eres un analista ejecutivo BI de ALMACEN PAS. Responde en español, claro, directo y basado únicamente en los datos enviados. Si falta un dato, dilo.' },
+        { role: 'system', content: `Eres un analista ejecutivo BI de ${(context as { sucursal?: string }).sucursal ?? 'ALMACEN PAS'}. Responde en español, claro, directo y basado únicamente en los datos enviados. Si falta un dato, dilo.` },
         { role: 'user', content: `Datos disponibles:\n${JSON.stringify(context)}\n\nPregunta: ${question}` }
       ]
     })
@@ -170,16 +171,16 @@ const askAI = async (question: string, context: unknown) => {
 };
 
 const formatMoney = (value: number) => value.toLocaleString('es-EC', { style: 'currency', currency: 'USD' });
-const answerDirectly = async (question: string, periodMonths: PeriodMonths) => {
+const answerDirectly = async (question: string, periodMonths: PeriodMonths, branch: string) => {
   const normalized = question.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
   if (['hola', 'buenos dias', 'buenas tardes', 'buenas noches'].includes(normalized.trim())) {
-    return 'Hola. Soy el asistente IA de ALMACEN PAS. Puedes preguntarme por ventas de hoy, inventario, proveedores, rotación, margen o productos con sobrestock.';
+    return `Hola. Soy el asistente IA de ${branch}. Puedes preguntarme por ventas de hoy, inventario, proveedores, rotación, margen o productos con sobrestock.`;
   }
 
   if (normalized.includes('hoy') && (normalized.includes('vend') || normalized.includes('venta'))) {
     const today = dayjs().format('YYYY-MM-DD');
-    const products = await loadSiapeProducts(today, today);
+    const products = await loadSiapeProducts(today, today, 'hour', branch);
     const rows = products
       .map((product) => ({
         code: product.code,
@@ -192,15 +193,15 @@ const answerDirectly = async (question: string, periodMonths: PeriodMonths) => {
       .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue);
     const totalUnits = rows.reduce((sum, row) => sum + row.quantity, 0);
     const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
-    if (rows.length === 0) return `Hoy ${today} no hay productos vendidos registrados en SIAPE para ALMACEN PAS.`;
+    if (rows.length === 0) return `Hoy ${today} no hay productos vendidos registrados en SIAPE para ${branch}.`;
     const detail = rows.slice(0, 15).map((row, index) => `${index + 1}. ${row.code} - ${row.description}: ${row.quantity} unidades, ${formatMoney(row.revenue)}, proveedor ${row.provider || 'N/D'}`).join('\n');
     return `Hoy ${today} se vendieron ${rows.length} productos distintos, con ${totalUnits} unidades y un total vendido de ${formatMoney(totalRevenue)}.\n\nProductos principales:\n${detail}`;
   }
 
   if (normalized.includes('sobrestock') || normalized.includes('sobre stock')) {
     const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
-    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant-direct', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey: `${branch}-assistant-direct`, generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
     const rows = payload.rows.filter((row) => row.inventoryState.toLowerCase().includes('sobrestock'));
     return `En el periodo ${payload.periodLabel} hay ${rows.length} productos con sobrestock.\n\nPrincipales por capital inmovilizado:\n${rows.slice(0, 10).map((row, index) => `${index + 1}. ${row.code} - ${row.description}: stock ${row.stockTotal}, cobertura ${row.coverageDays >= 999 ? '999+' : row.coverageDays.toFixed(0)} días, capital ${formatMoney(row.immobilizedCapital)}`).join('\n')}`;
   }
@@ -211,20 +212,22 @@ const answerDirectly = async (question: string, periodMonths: PeriodMonths) => {
 app.post('/api/assistant', async (req, res) => {
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   const periodMonths = Math.min(12, Math.max(1, Number(req.body?.periodMonths ?? 3))) as PeriodMonths;
+  const branch = typeof req.body?.branch === 'string' && req.body.branch.trim() ? req.body.branch.trim() : 'ALMACEN PAS';
   if (!question) {
     res.status(400).json({ message: 'Debe enviar una pregunta.' });
     return;
   }
 
   try {
-    const directAnswer = await answerDirectly(question, periodMonths);
+    resolveBranchConfig(branch);
+    const directAnswer = await answerDirectly(question, periodMonths, branch);
     if (directAnswer) {
       res.json({ answer: directAnswer, periodLabel: 'Respuesta directa con datos reales' });
       return;
     }
     const { dateStart, dateEnd } = resolveOverviewRange(periodMonths);
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week');
-    const payload = buildProductOverview(products, { branch: 'ALMACEN PAS', periodMonths, dateStart, dateEnd, cacheKey: 'assistant', generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
+    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey: `${branch}-assistant`, generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss') });
     const answer = await askAI(question, buildAssistantContext(payload));
     res.json({ answer, periodLabel: payload.periodLabel });
   } catch (error) {
