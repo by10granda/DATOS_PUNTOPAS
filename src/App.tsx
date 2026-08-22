@@ -26,7 +26,7 @@ type SearchSuggestion = {
 };
 
 const cloudinaryProductImage = (code: string) => `https://res.cloudinary.com/dy5t5q3dl/image/upload/v1782406564/${code}_E.png`;
-const branchHasImages = (branch: string) => branch !== 'VARIEDADES PAS';
+const branchHasImages = (branch: string) => branch === 'ALMACEN PAS';
 
 function ProductImage({ row, className }: { row: ProductRow; className: string }) {
   if (!branchHasImages(row.branch)) return <span className="text-xs font-bold text-slate-400">Sin imagen</span>;

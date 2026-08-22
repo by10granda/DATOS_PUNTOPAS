@@ -18,7 +18,8 @@ app.use(morgan('dev'));
 
 const branches: Branch[] = [
   { name: 'ALMACEN PAS', hasImages: true },
-  { name: 'VARIEDADES PAS', hasImages: false }
+  { name: 'VARIEDADES PAS', hasImages: false },
+  { name: 'STIHL', hasImages: false }
 ];
 
 const maxRangeMonths = 12;

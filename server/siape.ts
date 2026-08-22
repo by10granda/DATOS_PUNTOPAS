@@ -58,6 +58,12 @@ const branchConfigs = {
     baseUrl: () => process.env.SIAPE_API_BASE_URL_SUCURSAL2 ?? 'https://api-sucursal2.distribuidor-puntopas.com',
     user: () => process.env.SIAPE_API_USER_SUCURSAL2 ?? process.env.SIAPE_API_USER,
     password: () => process.env.SIAPE_API_PASSWORD_SUCURSAL2 ?? process.env.SIAPE_API_PASSWORD
+  },
+  'STIHL': {
+    name: 'STIHL',
+    baseUrl: () => process.env.SIAPE_API_BASE_URL_SUCURSAL3 ?? 'https://api-sucursal3.distribuidor-puntopas.com',
+    user: () => process.env.SIAPE_API_USER_SUCURSAL3,
+    password: () => process.env.SIAPE_API_PASSWORD_SUCURSAL3
   }
 };
 
