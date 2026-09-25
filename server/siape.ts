@@ -283,6 +283,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
   const profitByProductBucket = new Map<string, Map<string, number>>();
   const revenueByProduct = new Map<string, number>();
   const saleDateByProduct = new Map<string, string>();
+  const saleDescriptionByProduct = new Map<string, string>();
   const costByProduct = new Map<string, number>();
   const priceByProduct = new Map<string, number>();
   const salePricesWithIvaByProduct = new Map<string, Array<{ priceWithIva: number; quantity: number }>>();
@@ -290,6 +291,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
 
   for (const sale of sales) {
     const code = sale.codigo;
+    if (!saleDescriptionByProduct.has(code)) saleDescriptionByProduct.set(code, textValue(sale.descripcion, code));
     const saleDay = dayjs(sale.fecha_venta);
     const month = bucket === 'week' && saleDay.isValid()
       ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}`
@@ -327,8 +329,27 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
     }))).map((item) => JSON.parse(item) as { label: string; weekStart: string; monthLabel: string })
     : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
   const hours = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+  const inventoryRows = dedupeInventoryByCode(inventory);
+  const inventoryCodes = new Set(inventoryRows.map((item) => item.codigo));
+  const soldFallbackRows: SiapeInventoryItem[] = Array.from(salesByProduct.keys()).filter((code) => !inventoryCodes.has(code)).map((code) => {
+    const catalogItem = catalogByProduct.get(code);
+    const price = numberValue(catalogItem?.precioVentaSinImpuestos ?? priceByProduct.get(code));
+    return {
+      codigo: code,
+      descripcion: textValue((catalogItem as SiapeCatalogItem & { descripcionItem?: string } | undefined)?.descripcionItem, textValue(saleDescriptionByProduct.get(code), code)),
+      marca: textValue((catalogItem as SiapeCatalogItem & { descripcionMarca?: string } | undefined)?.descripcionMarca, 'SIN MARCA'),
+      linea: 'SIN LÍNEA',
+      categoria: textValue((catalogItem as SiapeCatalogItem & { descripcionCategoria?: string } | undefined)?.descripcionCategoria, 'SIN CATEGORÍA'),
+      tipo: 'SIN TIPO',
+      disponibilidad: 0,
+      dias_en_bodega: 0,
+      bodegas: [],
+      niveles_precio: price > 0 ? [{ nivel: 'PVP', precio: price }] : [],
+      proveedores: []
+    };
+  });
 
-  return dedupeInventoryByCode(inventory).map((item) => {
+  return [...inventoryRows, ...soldFallbackRows].map((item) => {
     const provider = item.proveedores?.[0];
     const catalogItem = catalogByProduct.get(item.codigo);
     const puntoPas = item.niveles_precio?.find((level) => textValue(level.nivel).toUpperCase().includes('PUNTO PAS'));

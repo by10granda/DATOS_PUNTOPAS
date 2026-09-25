@@ -225,6 +225,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
   const profitByProductBucket = new Map();
   const revenueByProduct = new Map();
   const saleDateByProduct = new Map();
+  const saleDescriptionByProduct = new Map();
   const costByProduct = new Map();
   const priceByProduct = new Map();
   const salePricesWithIvaByProduct = new Map();
@@ -232,6 +233,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
 
   for (const sale of sales) {
     const code = sale.codigo;
+    if (!saleDescriptionByProduct.has(code)) saleDescriptionByProduct.set(code, sale.descripcion);
     const saleDay = dayjs(sale.fecha_venta);
     const hour = bucket === 'week' && saleDay.isValid() ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}` : saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
     const hourOfDay = saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
@@ -267,8 +269,27 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
     }))).map((item) => JSON.parse(item))
     : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
   const hoursOfDay = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+  const inventoryRows = dedupeInventoryByCode(inventory);
+  const inventoryCodes = new Set(inventoryRows.map((item) => item.codigo));
+  const soldFallbackRows = Array.from(salesByProduct.keys()).filter((code) => !inventoryCodes.has(code)).map((code) => {
+    const catalogItem = catalogByProduct.get(code);
+    const price = numberValue(catalogItem?.precioVentaSinImpuestos ?? priceByProduct.get(code));
+    return {
+      codigo: code,
+      descripcion: textValue(catalogItem?.descripcionItem, textValue(saleDescriptionByProduct.get(code), code)),
+      marca: textValue(catalogItem?.descripcionMarca, 'SIN MARCA'),
+      linea: 'SIN LINEA',
+      categoria: textValue(catalogItem?.descripcionCategoria, 'SIN CATEGORIA'),
+      tipo: 'SIN TIPO',
+      disponibilidad: 0,
+      dias_en_bodega: 0,
+      bodegas: [],
+      niveles_precio: price > 0 ? [{ nivel: 'PVP', precio: price }] : [],
+      proveedores: []
+    };
+  });
 
-  return dedupeInventoryByCode(inventory).map((item) => {
+  return [...inventoryRows, ...soldFallbackRows].map((item) => {
     const provider = item.proveedores?.[0];
     const catalogItem = catalogByProduct.get(item.codigo);
     const puntoPas = item.niveles_precio?.find((level) => textValue(level.nivel).toUpperCase().includes('PUNTO PAS'));
