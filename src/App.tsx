@@ -1294,7 +1294,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const [detailSearch, setDetailSearch] = useState('');
   const [detailSearchFocused, setDetailSearchFocused] = useState(false);
   const [selectedRow, setSelectedRow] = useState<ProductRow | null>(null);
-  const rows = data.rows.filter((row) => row.salesXMonths > 0);
+  const rows = [...data.rows].sort((a, b) => b.salesXMonths - a.salesXMonths || a.description.localeCompare(b.description, 'es'));
   const searchTerm = detailSearch.trim();
   const scoredRows = rows.map((row) => {
     const score = Math.max(
@@ -1318,6 +1318,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const totalSalesMoney = visibleRows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0);
   const soldAverageMargin = visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0;
   const soldUnits = visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0);
+  const soldProductsCount = rows.filter((row) => row.salesXMonths > 0).length;
   const warehouseColumns = Array.from(new Set(visibleRows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const monthlyQuantityColumns = monthQuantityColumns(visibleRows);
 
@@ -1354,7 +1355,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             <DarkMetric label="Total Ventas" value={money(totalSalesMoney)} />
             <DarkMetric label="Ganancia" value={money(soldProfit)} />
             <DarkMetric label="Media margen" value={percent(soldAverageMargin)} />
-            <DarkMetric label="Productos vendidos" value={rows.length.toLocaleString('es-EC')} />
+            <DarkMetric label="Productos" value={rows.length.toLocaleString('es-EC')} />
             <DarkMetric label="Unidades" value={twoDecimals(soldUnits)} />
           </div>
         </div>
@@ -1386,7 +1387,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             )}
           </div>
           <div className="mt-2 text-xs font-bold text-cyan-100/60">
-            Mostrando {visibleRows.length.toLocaleString('es-EC')} de {rows.length.toLocaleString('es-EC')} productos vendidos.
+            Mostrando {visibleRows.length.toLocaleString('es-EC')} de {rows.length.toLocaleString('es-EC')} productos. Vendidos: {soldProductsCount.toLocaleString('es-EC')}.
           </div>
         </div>
 
@@ -1434,7 +1435,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={22 + warehouseColumns.length + monthlyQuantityColumns.length} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos vendidos que coincidan con la búsqueda.</td>
+                  <td colSpan={22 + warehouseColumns.length + monthlyQuantityColumns.length} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos que coincidan con la búsqueda.</td>
                 </tr>
               )}
             </tbody>
