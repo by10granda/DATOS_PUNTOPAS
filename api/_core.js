@@ -402,6 +402,7 @@ export const buildDashboard = (products, params) => {
   const totalProfit = rows.reduce((sum, row) => sum + row.totalProfit, 0);
   const averageGeneralSales = rows.length ? rows.reduce((acc, row) => acc + row.salesXMonths, 0) / rows.length : 0;
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
+  const noMovementRows = rows.filter((row) => row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0);
   const averageMargin = averageValidMargins(soldRows);
   const donutSeries = monthLabels.map((month) => ({ name: month, value: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === month)?.quantity ?? 0), 0) })).filter((item) => item.value > 0);
   const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
@@ -422,7 +423,7 @@ export const buildDashboard = (products, params) => {
     availableTypes: Array.from(new Set(facetProducts.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es')),
     availableWarehouses,
     availableProducts: facetProducts.map((row) => ({ code: row.code, description: row.description })).sort((a, b) => a.description.localeCompare(b.description, 'es')),
-    kpis: { totalProducts: rows.length, totalUnitsSold, totalStock, totalProfit, highRotation: rows.filter((row) => row.salesXMonths > averageGeneralSales).length, noSales: rows.filter((row) => row.salesXMonths === 0).length, overstock: rows.filter((row) => row.stock > row.averageMonthlySales * 3).length, averageMargin },
+    kpis: { totalProducts: rows.length, totalUnitsSold, totalStock, totalProfit, highRotation: rows.filter((row) => row.salesXMonths > averageGeneralSales).length, noSales: noMovementRows.length, overstock: rows.filter((row) => row.stock > row.averageMonthlySales * 3).length, averageMargin },
     monthlySeries: totalsByMonth,
     hourlySeries: hourLabels.map((hour) => ({ hour, quantity: rows.reduce((sum, row) => sum + (row.hourlySales?.find((sale) => sale.month === hour)?.quantity ?? 0), 0) })),
     donutSeries,
@@ -430,7 +431,7 @@ export const buildDashboard = (products, params) => {
     rows,
     lowStockHighRotationRows: rows.filter((row) => row.salesXMonths > averageGeneralSales && row.stock <= Math.max(row.averageMonthlySales, 1)).sort((a, b) => a.estimatedDaysInventory - b.estimatedDaysInventory || b.salesXMonths - a.salesXMonths).slice(0, 20),
     topRotationRows: [...rows].sort((a, b) => b.salesXMonths - a.salesXMonths).slice(0, 20),
-    noSalesRows: rows.filter((row) => row.salesXMonths === 0 || row.rotation < 0.1).slice(0, 20),
+    noSalesRows: noMovementRows.slice(0, 20),
     overstockRows: rows.filter((row) => row.stock > row.averageMonthlySales * 3).slice(0, 20)
   };
 };
@@ -504,6 +505,7 @@ export const buildProductOverview = (products, params) => {
     return { week, weekStart: sale?.weekStart, monthLabel: sale?.monthLabel, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((item) => item.month === week)?.revenue ?? 0), 0) };
   });
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
+  const noMovementRows = rows.filter((row) => row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0);
   const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
 
   return {
@@ -522,7 +524,7 @@ export const buildProductOverview = (products, params) => {
       totalProfit: rows.reduce((sum, row) => sum + row.totalProfit, 0),
       averageMargin: averageValidMargins(soldRows),
       activeProducts: soldRows.length,
-      noMovementProducts: rows.filter((row) => row.salesXMonths === 0).length,
+      noMovementProducts: noMovementRows.length,
       highRotationProducts: rows.filter((row) => row.rotation >= 1 || row.averageDailySales >= 1).length,
       criticalStockProducts: rows.filter((row) => row.salesXMonths > 0 && row.coverageDays <= 15).length
     },

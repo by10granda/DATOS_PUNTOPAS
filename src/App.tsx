@@ -770,7 +770,7 @@ function ProductOverviewExpanded({ data, onClose }: { data: ProductOverviewRespo
     const analysisMatch = analysis === 'all'
       || (analysis === 'lowStock' && row.salesXMonths > 0 && row.coverageDays <= 30 && row.rotation >= 0.5)
       || (analysis === 'overstock' && row.coverageDays >= 120 && row.stock > 0)
-      || (analysis === 'noSales' && row.salesXMonths === 0)
+      || (analysis === 'noSales' && row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0)
       || (analysis === 'highRotation' && (row.rotation >= 1 || row.averageDailySales >= 1));
     return searchMatch && lineMatch && categoryMatch && typeMatch && brandMatch && analysisMatch;
   }).sort((a, b) => {

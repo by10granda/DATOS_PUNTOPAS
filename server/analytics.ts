@@ -128,7 +128,8 @@ export const buildDashboard = (
   const totalProfit = rows.reduce((sum, row) => sum + row.totalProfit, 0);
   const averageGeneralSales = rows.length ? rows.reduce((acc, row) => acc + row.salesXMonths, 0) / rows.length : 0;
   const highRotation = rows.filter((row) => row.salesXMonths > averageGeneralSales).length;
-  const noSales = rows.filter((row) => row.salesXMonths === 0).length;
+  const noMovementRows = rows.filter((row) => row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0);
+  const noSales = noMovementRows.length;
   const overstock = rows.filter((row) => row.stock > row.averageMonthlySales * 3).length;
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
   const averageMargin = averageValidMargins(soldRows);
@@ -156,7 +157,7 @@ export const buildDashboard = (
     .sort((a, b) => a.estimatedDaysInventory - b.estimatedDaysInventory || b.salesXMonths - a.salesXMonths)
     .slice(0, 20);
 
-  const noSalesRows = rows.filter((row) => row.salesXMonths === 0 || row.rotation < 0.1).slice(0, 20);
+  const noSalesRows = noMovementRows.slice(0, 20);
   const overstockRows = rows.filter((row) => row.stock > row.averageMonthlySales * 3).slice(0, 20);
 
   return {
@@ -314,7 +315,7 @@ export const buildProductOverview = (
       totalProfit: rows.reduce((sum, row) => sum + row.totalProfit, 0),
       averageMargin: averageValidMargins(soldRows),
       activeProducts: soldRows.length,
-      noMovementProducts: rows.filter((row) => row.salesXMonths === 0).length,
+      noMovementProducts: rows.filter((row) => row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0).length,
       highRotationProducts: rows.filter((row) => row.rotation >= 1 || row.averageDailySales >= 1).length,
       criticalStockProducts: rows.filter((row) => row.salesXMonths > 0 && row.coverageDays <= 15).length,
     },
