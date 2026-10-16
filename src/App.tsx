@@ -501,7 +501,7 @@ function App() {
         {loading && <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">Cargando análisis...</div>}
       </main>
 
-      {drawer && <ProductDrawer row={drawer.row} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
+      {drawer && <ProductDrawer row={{ ...drawer.row, stockTotal: data?.rows.find((row) => row.id === drawer.row.id)?.stockTotal ?? drawer.row.stockTotal }} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
       {historicalOpen && <HistoricalModal manualStart={manualStart} manualEnd={manualEnd} manualError={manualError} onStartChange={setManualStart} onEndChange={setManualEnd} onApply={applyManualRange} onClose={() => setHistoricalOpen(false)} />}
       {showAssistantWidget && <AssistantWidget periodMonths={3} branch={selectedBranch} />}
     </div>
@@ -1441,7 +1441,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </tbody>
           </table>
         </div>
-        {selectedRow && <ProductVariablesModal row={selectedRow} onClose={() => setSelectedRow(null)} />}
+        {selectedRow && <ProductVariablesModal row={{ ...selectedRow, stockTotal: data.rows.find((row) => row.id === selectedRow.id)?.stockTotal ?? selectedRow.stockTotal }} onClose={() => setSelectedRow(null)} />}
     </section>
   );
 }
