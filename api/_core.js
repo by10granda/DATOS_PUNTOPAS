@@ -213,11 +213,21 @@ const normalizeProviderCostWithIva = (rawCostWithIva, providerCost, publicPriceW
 export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', branchName = 'ALMACEN PAS') => {
   const { name: branch, baseUrl, user, password } = resolveBranchConfig(branchName);
   const token = await getToken(baseUrl, { user, password, branch });
-  const [inventory, sales, catalog] = await Promise.all([
+  const [inventory, sales, catalog, stockInventory] = await Promise.all([
     fetchJson(baseUrl, '/api/item/reporteinventario', token),
     fetchSales(baseUrl, token, dateStart, dateEnd),
-    fetchOptionalJson(baseUrl, '/api/item/search3', token, [])
+    fetchOptionalJson(baseUrl, '/api/item/search3', token, []),
+    fetchJson(baseUrl, '/api/item/inventario', token)
   ]);
+
+  if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
+  const stockByProduct = new Map();
+  for (const item of stockInventory) {
+    if (typeof item?.codigo !== 'string' || item.disponible == null || item.disponible === '' || !Number.isFinite(Number(item.disponible))) {
+      throw new Error('Stock invalido en /api/item/inventario');
+    }
+    stockByProduct.set(item.codigo, Number(item.disponible));
+  }
 
   const salesByProduct = new Map();
   const hourlySalesByProduct = new Map();
@@ -316,7 +326,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
     const salesProfitWithProviderCost = salePrices.reduce((sum, sale) => sum + ((sale.priceWithIva - providerCostWithIva) * sale.quantity), 0);
     const salesAverageMarginPercent = soldQuantity > 0 ? marginSales.reduce((sum, sale) => sum + (((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity), 0) / soldQuantity : undefined;
     const warehouseStocks = mapWarehouseStocks(item.bodegas);
-    const stockTotal = Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0);
+    const stockTotal = stockByProduct.get(item.codigo) ?? 0;
 
     return {
       id: `${branch}-${item.codigo}`,
@@ -335,7 +345,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
       pricePuntoPas: effectivePuntoPasPrice,
       pricePvp: effectivePvpPrice,
-      stock: stockTotal,
+      stock: Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0),
       stockTotal,
       warehouseStocks,
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',

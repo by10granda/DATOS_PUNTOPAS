@@ -271,11 +271,21 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
   const { name: branch, baseUrl, user, password } = resolveBranchConfig(branchName);
 
   const token = await getToken(baseUrl, { user, password, branch });
-  const [inventory, sales, catalog] = await Promise.all([
+  const [inventory, sales, catalog, stockInventory] = await Promise.all([
     fetchJson<SiapeInventoryItem[]>(baseUrl, '/api/item/reporteinventario', token),
     fetchSales(baseUrl, token, dateStart, dateEnd),
-    fetchOptionalJson<SiapeCatalogItem[]>(baseUrl, '/api/item/search3', token, [])
+    fetchOptionalJson<SiapeCatalogItem[]>(baseUrl, '/api/item/search3', token, []),
+    fetchJson<Array<{ codigo: string; disponible: number | string }>>(baseUrl, '/api/item/inventario', token)
   ]);
+
+  if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
+  const stockByProduct = new Map<string, number>();
+  for (const item of stockInventory) {
+    if (typeof item?.codigo !== 'string' || item.disponible == null || item.disponible === '' || !Number.isFinite(Number(item.disponible))) {
+      throw new Error('Stock invalido en /api/item/inventario');
+    }
+    stockByProduct.set(item.codigo, Number(item.disponible));
+  }
 
   const salesByProduct = new Map<string, Map<string, number>>();
   const hourlySalesByProduct = new Map<string, Map<string, number>>();
@@ -378,7 +388,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
       ? marginSales.reduce((sum, sale) => sum + (((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity), 0) / soldQuantity
       : undefined;
     const warehouseStocks = mapWarehouseStocks(item.bodegas);
-    const stockTotal = Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0);
+    const stockTotal = stockByProduct.get(item.codigo) ?? 0;
 
     return {
       id: `${branch}-${item.codigo}`,
@@ -397,7 +407,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
       pricePuntoPas: effectivePuntoPasPrice,
       pricePvp: effectivePvpPrice,
-      stock: stockTotal,
+      stock: Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0),
       stockTotal,
       warehouseStocks,
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
