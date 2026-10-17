@@ -135,21 +135,31 @@ const mapWarehouseStocks = (warehouses = []) => Object.fromEntries(
   warehouses.map((warehouse) => [textValue(warehouse?.bodegaALMACEN, 'SIN BODEGA').toUpperCase(), Math.max(0, numberValue(warehouse?.stock))])
 );
 
-const fetchSales = async (baseUrl, token, dateStart, dateEnd) => {
+const fetchSales = async (baseUrl, token, dateStart, dateEnd, options = {}) => {
   const pageSize = Number(process.env.SIAPE_PAGE_SIZE ?? 5000);
   const rows = [];
   const pageSignatures = new Set();
   const queryDateEnd = dayjs(dateEnd).add(1, 'day').format('YYYY-MM-DD');
+  let complete = false;
 
   for (let page = 1; page <= 20; page += 1) {
     const query = new URLSearchParams({ fechaInicio: dateStart, fechaFin: queryDateEnd, page: String(page), pageSize: String(pageSize) });
     const batch = await fetchJson(baseUrl, `/api/factura/reporteventas?${query.toString()}`, token);
     const pageSignature = JSON.stringify(batch);
-    if (pageSignatures.has(pageSignature)) break;
+    if (pageSignatures.has(pageSignature)) {
+      if (options.strictSalesPagination) throw new Error('Reporte de ventas incompleto: pagina repetida');
+      break;
+    }
     pageSignatures.add(pageSignature);
     rows.push(...batch);
-    if (batch.length < pageSize) break;
+    if (batch.length < pageSize) {
+      complete = true;
+      break;
+    }
   }
+
+  if (options.strictSalesPagination && !complete) throw new Error('Reporte de ventas incompleto: limite de paginacion');
+  options.onRawSales?.(rows.map((sale) => ({ ...sale })));
 
   const start = dayjs(dateStart).startOf('day');
   const end = dayjs(dateEnd).endOf('day');
@@ -204,12 +214,12 @@ const normalizeProviderCostWithIva = (rawCostWithIva, providerCost, publicPriceW
   return rawCostWithIva || fallbackUnitCostWithIva;
 };
 
-export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', branchName = 'ALMACEN PAS') => {
+export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', branchName = 'ALMACEN PAS', options = {}) => {
   const { name: branch, baseUrl, user, password } = resolveBranchConfig(branchName);
   const token = await getToken(baseUrl, { user, password, branch });
   const [inventory, sales, catalog, stockInventory] = await Promise.all([
     fetchJson(baseUrl, '/api/item/reporteinventario', token),
-    fetchSales(baseUrl, token, dateStart, dateEnd),
+    fetchSales(baseUrl, token, dateStart, dateEnd, options),
     fetchJson(baseUrl, '/api/item/search3', token),
     fetchJson(baseUrl, '/api/item/inventario', token)
   ]);
