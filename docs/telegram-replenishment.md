@@ -53,8 +53,10 @@ privado. Un numero de telefono no permite deducir un `chat_id`.
 con autorizacion del destinatario. Revisar localmente el remitente y confirmar
 con el usuario que es el destino correcto. Nunca vincular automaticamente el
 primer chat recibido. Si hay varios chats, no elegir por orden de llegada.
-4. Establecer `TELEGRAM_CHAT_ID` al identificador numerico confirmado, sin `+`,
-espacios ni nombre `@usuario`. Aunque el validador acepta IDs negativos de Telegram,
+4. Establecer `TELEGRAM_CHAT_ID` al identificador numerico confirmado o a varios
+identificadores confirmados separados por comas, sin `+`, espacios ni nombres
+`@usuario`. Al agregar un destinatario, conservar los anteriores. Los IDs
+duplicados se envian una sola vez. Aunque el validador acepta IDs negativos de Telegram,
 este procedimiento de alta describe exclusivamente un chat privado autorizado.
 Un numero de telefono sin `+` puede parecer numerico: la validacion sintactica no
 reemplaza la confirmacion humana del destino.
@@ -156,6 +158,11 @@ No pasar el secreto en query ni usar el body para configuracion. Solo se acepta
 - Desactivado y autenticado: `200 {"skipped":"disabled"}`, sin carga ni envio.
 - Sucursal o parametros invalidos: `400`; metodo distinto de GET/POST: `405`.
 - Exito: `200` con `branch`, `count`, `filename`, `messageId`; nunca el Excel o sus filas.
+Con varios destinatarios incluye tambien `recipients` y `messageIds`. El archivo
+se construye una sola vez por sucursal y se entrega a todos los chats confirmados.
+- Entrega parcial: `502` con los conteos `delivered`, `failed` y los `messageIds`
+confirmados, sin exponer IDs de chat. Un destinatario bloqueado no impide el otro
+envio; no repetir toda la solicitud sin revisar las entregas ya realizadas.
 - Configuracion, origen, construccion o envio fallidos: `502` con mensaje minimo.
 Los logs de aplicacion solo contienen la sucursal validada y la fase, sin errores
 crudos, URLs, credenciales ni respuesta remota.

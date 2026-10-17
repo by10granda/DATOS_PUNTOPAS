@@ -36,8 +36,8 @@ export function createReportHandler({
       return res.status(400).json({ message: 'Solicitud invalida; indique una sola sucursal.' });
     }
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (!token?.trim() || /\s/.test(token) || !/^-?[1-9]\d*$/.test(chatId ?? '')) {
+    const chatIds = [...new Set((process.env.TELEGRAM_CHAT_ID ?? '').split(','))];
+    if (!token?.trim() || /\s/.test(token) || chatIds.some((chatId) => !/^-?[1-9]\d*$/.test(chatId))) {
       console.error('telegram-report', { branch, phase: 'configuration' });
       return res.status(502).json({ message: 'No se pudo procesar el reporte.' });
     }
@@ -57,9 +57,21 @@ export function createReportHandler({
       });
       const report = await createReport({ branch, rows, sales: raw, now: instant });
       phase = 'send';
-      const messageId = await sendReport({ token, chatId, report });
-      if (!Number.isSafeInteger(messageId) || messageId <= 0) throw new Error('Invalid message ID');
-      return res.status(200).json({ branch, count: report.count, filename: report.filename, messageId });
+      const deliveries = await Promise.allSettled(chatIds.map(async (chatId) => {
+        const messageId = await sendReport({ token, chatId, report });
+        if (!Number.isSafeInteger(messageId) || messageId <= 0) throw new Error('Invalid message ID');
+        return messageId;
+      }));
+      const messageIds = deliveries.filter((delivery) => delivery.status === 'fulfilled').map((delivery) => delivery.value);
+      if (messageIds.length !== chatIds.length) {
+        if (chatIds.length === 1) throw new Error('Delivery failed');
+        console.error('telegram-report', { branch, phase });
+        return res.status(502).json({ message: 'No se pudo entregar a todos los destinatarios.', branch,
+          delivered: messageIds.length, failed: chatIds.length - messageIds.length, messageIds });
+      }
+      const result = { branch, count: report.count, filename: report.filename, messageId: messageIds[0] };
+      if (chatIds.length > 1) Object.assign(result, { recipients: chatIds.length, messageIds });
+      return res.status(200).json(result);
     } catch {
       console.error('telegram-report', { branch, phase });
       return res.status(502).json({ message: 'No se pudo procesar el reporte.' });

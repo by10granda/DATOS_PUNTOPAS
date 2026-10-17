@@ -144,6 +144,61 @@ test('source/build/send errors are sanitized and logs contain only branch and ph
   }
 });
 
+test('multiple confirmed chats receive the same workbook with one SIAPE load', async () => {
+  process.env.TELEGRAM_CHAT_ID = '123456789,987654321';
+  const { handler, calls } = fixture({ sendReport: async (options) => {
+    calls.push(['send', options]);
+    return options.chatId === '123456789' ? 101 : 202;
+  } });
+  const res = await invoke(handler);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.recipients, 2);
+  assert.equal(res.body.messageId, 101);
+  assert.deepEqual(res.body.messageIds, [101, 202]);
+  assert.equal(calls.filter(([name]) => name === 'load').length, 1);
+  assert.equal(calls.filter(([name]) => name === 'report').length, 1);
+  const sends = calls.filter(([name]) => name === 'send');
+  assert.deepEqual(sends.map(([, options]) => options.chatId), ['123456789', '987654321']);
+  assert.equal(sends[0][1].report, sends[1][1].report);
+});
+
+test('duplicate chat IDs do not cause duplicate documents', async () => {
+  process.env.TELEGRAM_CHAT_ID = '123456789,123456789';
+  const { handler, calls } = fixture();
+  const res = await invoke(handler);
+  assert.equal(res.code, 200);
+  assert.equal(calls.filter(([name]) => name === 'send').length, 1);
+  assert.equal(res.body.messageId, 42);
+});
+
+test('an invalid recipient prevents any data load or delivery', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  for (const value of ['123456789,', ',123456789', '123456789,,987654321', '123456789, 987654321', '123456789,@untrusted']) {
+    process.env.TELEGRAM_CHAT_ID = value;
+    const { handler, calls } = fixture();
+    assert.equal((await invoke(handler)).code, 502);
+    assert.deepEqual(calls, []);
+  }
+});
+
+test('one blocked chat does not prevent the other delivery or trigger automatic resends', async (t) => {
+  const logs = [];
+  t.mock.method(console, 'error', (...args) => logs.push(args));
+  process.env.TELEGRAM_CHAT_ID = '123456789,987654321';
+  const delivered = [];
+  const { handler } = fixture({ sendReport: async ({ chatId }) => {
+    delivered.push(chatId);
+    if (chatId === '123456789') throw new Error('private remote error');
+    return 202;
+  } });
+  const res = await invoke(handler);
+  assert.equal(res.code, 502);
+  assert.deepEqual(res.body, { message: 'No se pudo entregar a todos los destinatarios.', branch: 'ALMACEN PAS',
+    delivered: 1, failed: 1, messageIds: [202] });
+  assert.deepEqual(delivered, ['123456789', '987654321']);
+  assert.deepEqual(logs, [['telegram-report', { branch: 'ALMACEN PAS', phase: 'send' }]]);
+});
+
 test('missing raw callback fails closed and invalid delivery IDs cannot report success', async (t) => {
   t.mock.method(console, 'error', () => {});
   const missing = fixture({ loadProducts: async () => [] });
