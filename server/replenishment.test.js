@@ -162,16 +162,28 @@ test('real XLSX: exact columns, string codes, net monthly totals, raw finance an
   const { sheet, table } = read(report(rows, sales));
   assert.deepEqual(table[6], ['Codigo', 'Descripcion', 'Cantidad vendida', 'julio 2026', 'agosto 2026',
     'septiembre 2026', 'octubre 2026 (parcial)', 'Proveedor', 'Costo+IVA', 'PrecioActual', 'StockTotal', 'MargenActual%']);
-  assert.deepEqual(table[7], ['00000001', 'Producto 00000001', 8, 4, -1, 2, 3, 'Proveedor', 1.23456789, 9.87654321, 0, 40]);
+  assert.deepEqual(table[7], ['00000001', 'Producto 00000001', 8, 4, -1, 2, 3, 'Proveedor', 1.23456789, 9.87654321, 0, 0.4]);
   assert.equal(sheet.A8.t, 's');
   assert.equal(sheet.I8.z, '"$"#,##0.00');
   assert.equal(sheet.J8.z, '"$"#,##0.00');
-  assert.equal(sheet.L8.z, '0.00"%"');
+  assert.equal(sheet.L8.z, '0.00%');
   assert.equal(sheet.L8.w, '40.00%');
   assert.match(table[2][1], /2026-10-17 07:00:00 -05:00/);
   assert.match(table[3][1], /< 15 dias/);
   assert.equal(sheet['!ref'], 'A1:L8');
   assert.deepEqual({ rows, sales }, snapshot);
+});
+
+test('00013617 margin uses a standard Excel percentage without multiplying it twice', () => {
+  for (const [margin, displayed] of [[32.999936357576665, '33.00%'], [0, '0.00%'], [-12.5, '-12.50%'], [150, '150.00%']]) {
+    const row = product('00013617', 0, { currentMarginPercent: margin });
+    const { sheet } = read(report([row], [sale(row.code)]));
+    assert.equal(sheet.L8.t, 'n');
+    assert.equal(sheet.L8.v, margin / 100);
+    assert.equal(sheet.L8.z, '0.00%');
+    assert.equal(sheet.L8.w, displayed);
+    assert.equal(row.currentMarginPercent, margin);
+  }
 });
 
 test('NO HAY respects missingFields, zero is valid, no price/margin recalculation', () => {

@@ -38,6 +38,8 @@ Cada archivo contiene codigo, descripcion, total vendido, cuatro columnas
 mensuales, proveedor, costo con IVA, precio actual, stock total y margen actual.
 Los datos faltantes se escriben como `NO HAY`; los ceros reales se conservan.
 Los precios y el margen se toman del programa existente sin cambiar sus formulas.
+El margen se guarda en Excel como fraccion con formato porcentual estandar:
+un valor del programa de 33 se almacena como 0.33 y se muestra como 33.00%.
 
 ## Configuracion Segura
 
