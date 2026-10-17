@@ -1,5 +1,49 @@
 import dayjs from 'dayjs';
 import type { DashboardResponse, PeriodMonths, ProductOverviewResponse, ProductOverviewRow, ProductRecord, ProductRow } from './types';
+import type { CompactDashboardResponse } from '../src/types';
+
+export const compactDashboard = (payload: DashboardResponse): DashboardResponse | CompactDashboardResponse => {
+  const seriesKeys = ['monthlySales', 'hourlySales'] as const;
+  const listKeys = ['lowStockHighRotationRows', 'topRotationRows', 'noSalesRows', 'overstockRows'] as const;
+  const zeroPoint = (point: ProductRow['monthlySales'][number]) => {
+    const zero = { ...point };
+    for (const key of ['quantity', 'revenue', 'profit'] as const) {
+      if (typeof zero[key] === 'number') zero[key] = 0;
+    }
+    return zero;
+  };
+  const seriesTemplates = {
+    monthlySales: (payload.rows[0]?.monthlySales ?? []).map(zeroPoint),
+    hourlySales: (payload.rows[0]?.hourlySales ?? []).map(zeroPoint),
+  };
+  const rowsById = new Map(payload.rows.map((row) => [row.id, row]));
+  if (rowsById.size !== payload.rows.length) return payload;
+  for (const key of listKeys) {
+    if (payload[key].some((row) => {
+      const original = rowsById.get(row.id);
+      return !original || (original !== row && JSON.stringify(original) !== JSON.stringify(row));
+    })) return payload;
+  }
+  // A shared template requires identical zero shapes, including optional keys and metadata.
+  for (const key of seriesKeys) {
+    const template = JSON.stringify(seriesTemplates[key]);
+    if (payload.rows.some((row) => JSON.stringify(row[key].map(zeroPoint)) !== template)) return payload;
+  }
+  const sparse = (points: ProductRow['monthlySales']): [number, ProductRow['monthlySales'][number]][] =>
+    points.flatMap((point, index) =>
+      [point.quantity, point.revenue, point.profit].some((value) => typeof value === 'number' && value !== 0)
+        ? [[index, point] as [number, ProductRow['monthlySales'][number]]] : []);
+  return {
+    ...payload,
+    compact: true,
+    seriesTemplates,
+    rows: payload.rows.map((row) => ({ ...row, monthlySales: sparse(row.monthlySales), hourlySales: sparse(row.hourlySales) })),
+    lowStockHighRotationRows: payload.lowStockHighRotationRows.map((row) => row.id),
+    topRotationRows: payload.topRotationRows.map((row) => row.id),
+    noSalesRows: payload.noSalesRows.map((row) => row.id),
+    overstockRows: payload.overstockRows.map((row) => row.id),
+  };
+};
 
 export const normalizeText = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 

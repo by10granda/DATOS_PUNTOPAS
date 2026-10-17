@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
@@ -193,7 +194,7 @@ function App() {
     clearSearchFilters();
   };
 
-  const displayedRows = [...(data?.rows ?? [])]
+  const displayedRows = useMemo(() => [...(data?.rows ?? [])]
     .sort((a, b) => {
       const aValue = a[sortKey];
       const bValue = b[sortKey];
@@ -201,7 +202,7 @@ function App() {
       const aNum = Number(aValue);
       const bNum = Number(bValue);
       return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
-    });
+    }), [data?.rows, sortKey, sortDirection]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(displayedRows.length / pageSize));
@@ -1294,9 +1295,9 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const [detailSearch, setDetailSearch] = useState('');
   const [detailSearchFocused, setDetailSearchFocused] = useState(false);
   const [selectedRow, setSelectedRow] = useState<ProductRow | null>(null);
-  const rows = [...data.rows].sort((a, b) => b.salesXMonths - a.salesXMonths || a.description.localeCompare(b.description, 'es'));
-  const searchTerm = detailSearch.trim();
-  const scoredRows = rows.map((row) => {
+  const rows = useMemo(() => [...data.rows].sort((a, b) => b.salesXMonths - a.salesXMonths || a.description.localeCompare(b.description, 'es')), [data.rows]);
+  const searchTerm = useDeferredValue(detailSearch.trim());
+  const scoredRows = useMemo(() => searchTerm ? rows.map((row) => {
     const score = Math.max(
       scoreMatch(searchTerm, row.code),
       scoreMatch(searchTerm, row.description),
@@ -1307,20 +1308,77 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
       scoreMatch(searchTerm, row.provider)
     );
     return { row, score };
-  });
-  const visibleRows = searchTerm ? scoredRows.filter((item) => item.score > 0).map((item) => item.row) : rows;
-  const detailSuggestions = searchTerm.length >= 2 ? scoredRows
+  }) : [], [rows, searchTerm]);
+  const visibleRows = useMemo(() => searchTerm ? scoredRows.filter((item) => item.score > 0).map((item) => item.row) : rows, [rows, scoredRows, searchTerm]);
+  const detailSuggestions = useMemo(() => searchTerm.length >= 2 ? scoredRows
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 8)
-    .map((item) => item.row) : [];
-  const soldProfit = visibleRows.reduce((sum, row) => sum + row.totalProfit, 0);
-  const totalSalesMoney = visibleRows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0);
-  const soldAverageMargin = visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0;
-  const soldUnits = visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0);
-  const soldProductsCount = rows.filter((row) => row.salesXMonths > 0).length;
-  const warehouseColumns = Array.from(new Set(visibleRows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
-  const monthlyQuantityColumns = monthQuantityColumns(visibleRows);
+    .map((item) => item.row) : [], [scoredRows, searchTerm]);
+  const { soldProfit, totalSalesMoney, soldAverageMargin, soldUnits } = useMemo(() => ({
+    soldProfit: visibleRows.reduce((sum, row) => sum + row.totalProfit, 0),
+    totalSalesMoney: visibleRows.reduce((sum, row) => sum + (row.publicCostWithIva * row.salesXMonths), 0),
+    soldAverageMargin: visibleRows.length > 0 ? visibleRows.reduce((sum, row) => sum + row.marginPercent, 0) / visibleRows.length : 0,
+    soldUnits: visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0),
+  }), [visibleRows]);
+  const soldProductsCount = useMemo(() => rows.filter((row) => row.salesXMonths > 0).length, [rows]);
+  const warehouseColumns = useMemo(() => Array.from(new Set(visibleRows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es')), [visibleRows]);
+  const monthlyQuantityColumns = useMemo(() => monthQuantityColumns(visibleRows), [visibleRows]);
+  const columnLabels = ['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'];
+  const columnKey = JSON.stringify(columnLabels);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLTableSectionElement>(null);
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const [columnSizing, setColumnSizing] = useState<{ key: string; widths: number[] } | null>(null);
+  const columnWidths = columnSizing?.key === columnKey ? columnSizing.widths : null;
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const getRowKey = useMemo(() => (index: number) => visibleRows[index].id, [visibleRows]);
+  const virtualizer = useVirtualizer({
+    count: visibleRows.length,
+    getScrollElement: () => scrollRef.current,
+    getItemKey: getRowKey,
+    estimateSize: () => 64,
+    overscan: 10,
+    gap: 4,
+    scrollMargin,
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+
+  useLayoutEffect(() => {
+    if (!columnWidths && virtualRows.length > 0 && headRef.current) {
+      // Sample only the initial virtual window using the existing auto table layout.
+      setColumnSizing({ key: columnKey, widths: Array.from(headRef.current.rows[0].cells, (cell) => cell.getBoundingClientRect().width) });
+    }
+  }, [columnKey, columnWidths, virtualRows.length]);
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const head = headRef.current;
+    const body = bodyRef.current;
+    if (!scroller || !head || !body) return;
+    const measureOrigin = () => {
+      // tbody's origin includes container padding, the header and both table gaps.
+      setScrollMargin(body.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - scroller.clientTop);
+    };
+    measureOrigin();
+    const observer = new ResizeObserver(measureOrigin);
+    observer.observe(head);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [columnWidths]);
+
+  useLayoutEffect(() => {
+    virtualizer.measure();
+    bodyRef.current?.querySelectorAll<HTMLTableRowElement>('tr[data-index]').forEach((row) => virtualizer.measureElement(row));
+  }, [virtualizer, columnWidths]);
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [searchTerm]);
+
+  // A native spacer row contributes its own 4px border-spacing gap.
+  const topSpace = virtualRows.length ? virtualRows[0].start - scrollMargin : 0;
+  const bottomSpace = virtualRows.length ? virtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1].end - scrollMargin) : 0;
 
   return (
     <section className="overflow-visible rounded-[1.5rem] bg-[#061a24] text-white shadow-2xl">
@@ -1391,19 +1449,22 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-1rem)] overflow-auto px-4 pb-4 pt-3 scrollbar-thin">
-          <table className="min-w-[3000px] w-full table-auto border-separate border-spacing-y-1 text-xs">
-            <thead className="sticky top-0 z-30 bg-white shadow-lg shadow-slate-900/10">
-              <tr>
-                {['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'].map((label) => (
+        <div ref={scrollRef} className="daily-detail-scroll max-h-[calc(100vh-1rem)] overflow-auto px-4 pb-4 pt-3 scrollbar-thin">
+          <table aria-rowcount={visibleRows.length + 1} className="min-w-[3000px] w-full table-auto border-separate border-spacing-y-1 text-xs" style={columnWidths ? { tableLayout: 'fixed', width: columnWidths.reduce((sum, width) => sum + width, 0) } : undefined}>
+            {columnWidths && <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>}
+            <thead ref={headRef} className="sticky top-0 z-30 bg-white shadow-lg shadow-slate-900/10">
+              <tr aria-rowindex={1}>
+                {columnLabels.map((label) => (
                   <th key={label} className="sticky top-0 z-30 whitespace-nowrap border-b border-red-200 bg-white px-2.5 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {visibleRows.map((row) => (
-                <Fragment key={row.id}>
-                <tr onClick={() => setSelectedRow(row)} className={`daily-detail-row cursor-pointer transition hover:bg-white/10 ${Number(row.stockTotal ?? row.stock) <= 0 ? 'zero-stock-row bg-red-950 ring-2 ring-red-500/60' : 'bg-white/5'}`}>
+            <tbody ref={bodyRef}>
+              {topSpace > 0 && <tr aria-hidden="true" className="daily-detail-spacer"><td colSpan={columnLabels.length} style={{ height: Math.max(0, topSpace - 4) }} /></tr>}
+              {virtualRows.map((virtualRow) => {
+                const row = visibleRows[virtualRow.index];
+                return (
+                <tr key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index} aria-rowindex={virtualRow.index + 2} onClick={() => setSelectedRow(row)} className={`daily-detail-row cursor-pointer transition hover:bg-white/10 ${Number(row.stockTotal ?? row.stock) <= 0 ? 'zero-stock-row bg-red-950 ring-2 ring-red-500/60' : 'bg-white/5'}`}>
                   <td className="rounded-l-xl px-2.5 py-2">
                     <ProductImage row={row} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
@@ -1431,11 +1492,12 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                    <td className="rounded-r-xl px-2.5 py-2 font-black">{productValue(row, 'marginPercent', percent(row.marginPercent))}</td>
                    <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{productValue(row, 'currentMarginPercent', percentTwo(row.currentMarginPercent))}</td>
                 </tr>
-                </Fragment>
-              ))}
+                );
+              })}
+              {bottomSpace > 0 && <tr aria-hidden="true" className="daily-detail-spacer"><td colSpan={columnLabels.length} style={{ height: Math.max(0, bottomSpace - 4) }} /></tr>}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={22 + warehouseColumns.length + monthlyQuantityColumns.length} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos que coincidan con la búsqueda.</td>
+                  <td colSpan={columnLabels.length} className="rounded-xl bg-white/5 px-4 py-8 text-center text-sm font-bold text-cyan-100/70">No hay productos que coincidan con la búsqueda.</td>
                 </tr>
               )}
             </tbody>

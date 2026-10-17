@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import path from 'node:path';
 import fs from 'node:fs';
 import dayjs from 'dayjs';
-import { buildDashboard, buildProductOverview } from './analytics';
+import { buildDashboard, buildProductOverview, compactDashboard } from './analytics';
 import { loadSiapeProducts, resolveBranchConfig } from './siape';
 import type { Branch, PeriodMonths } from './types';
 
@@ -75,14 +75,14 @@ app.get('/api/dashboard', async (req, res) => {
 
     if (!branch) {
       const payload = buildDashboard([], branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd });
-      res.json(payload);
+      res.json(req.query.compact === '1' ? compactDashboard(payload) : payload);
       return;
     }
 
     resolveBranchConfig(branch);
     const products = await loadSiapeProducts(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
     const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd });
-    res.json(payload);
+    res.json(req.query.compact === '1' ? compactDashboard(payload) : payload);
   } catch (error) {
     res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar datos desde SIAPE' });
   }

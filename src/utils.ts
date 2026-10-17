@@ -1,7 +1,4 @@
 import type { ProductOverviewRow, ProductRow } from './types';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 export const money = (value: number) => value.toLocaleString('es-EC', { style: 'currency', currency: 'USD' });
 
@@ -52,7 +49,8 @@ const buildProductExport = (rows: ProductRow[]) => {
   return { headers, body };
 };
 
-export const exportExcel = (rows: ProductRow[], fileName: string, options: ExportOptions = {}) => {
+export const exportExcel = async (rows: ProductRow[], fileName: string, options: ExportOptions = {}) => {
+  const XLSX = await import('xlsx');
   const { headers, body } = buildProductExport(rows);
   const titleRows = options.periodLabel ? [
     ['DETALLE EJECUTIVO DIARIO'],
@@ -67,7 +65,8 @@ export const exportExcel = (rows: ProductRow[], fileName: string, options: Expor
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
 };
 
-export const exportPdf = (rows: ProductRow[], title: string, options: ExportOptions = {}) => {
+export const exportPdf = async (rows: ProductRow[], title: string, options: ExportOptions = {}) => {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const { headers, body } = buildProductExport(rows);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
   doc.setFontSize(14);
@@ -104,7 +103,8 @@ const buildRecommendationExport = (rows: ProductRow[]) => {
   return { headers, body };
 };
 
-export const exportRecommendationsExcel = (rows: ProductRow[], fileName: string, options: ExportOptions = {}) => {
+export const exportRecommendationsExcel = async (rows: ProductRow[], fileName: string, options: ExportOptions = {}) => {
+  const XLSX = await import('xlsx');
   const { headers, body } = buildRecommendationExport(rows);
   const titleRows = options.periodLabel ? [
     ['RECOMENDACIONES DE INVENTARIO'],
@@ -119,7 +119,8 @@ export const exportRecommendationsExcel = (rows: ProductRow[], fileName: string,
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
 };
 
-export const exportRecommendationsPdf = (rows: ProductRow[], title: string, options: ExportOptions = {}) => {
+export const exportRecommendationsPdf = async (rows: ProductRow[], title: string, options: ExportOptions = {}) => {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const { headers, body } = buildRecommendationExport(rows);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
   doc.setFontSize(14);
@@ -139,7 +140,8 @@ export const exportRecommendationsPdf = (rows: ProductRow[], title: string, opti
   doc.save(`${title}.pdf`);
 };
 
-export const exportOverviewExcel = (rows: ProductOverviewRow[], fileName: string) => {
+export const exportOverviewExcel = async (rows: ProductOverviewRow[], fileName: string) => {
+  const XLSX = await import('xlsx');
   const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const data = rows.map((row) => ({
     Código: row.code,
@@ -177,7 +179,8 @@ export const exportOverviewExcel = (rows: ProductOverviewRow[], fileName: string
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
 };
 
-export const exportOverviewPdf = (rows: ProductOverviewRow[], title: string) => {
+export const exportOverviewPdf = async (rows: ProductOverviewRow[], title: string) => {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
   doc.setFontSize(15);

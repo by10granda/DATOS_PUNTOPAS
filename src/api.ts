@@ -1,6 +1,35 @@
-import type { DashboardResponse, Branch, ProductOverviewResponse } from './types';
+import type { DashboardResponse, CompactDashboardResponse, MonthlySale, Branch, ProductOverviewResponse } from './types';
 
 const apiUrl = (path: string) => `${path}`;
+
+export function rehydrateDashboard(payload: DashboardResponse | CompactDashboardResponse): DashboardResponse {
+  if (!('compact' in payload) || payload.compact !== true) return payload as DashboardResponse;
+  const { compact: _compact, seriesTemplates, ...dashboard } = payload;
+  const restore = (template: MonthlySale[], points: [number, MonthlySale][]) => {
+    const series = template.map((point) => ({ ...point }));
+    for (const [index, point] of points) series[index] = { ...point };
+    return series;
+  };
+  const rows = payload.rows.map((row) => ({
+    ...row,
+    monthlySales: restore(seriesTemplates.monthlySales, row.monthlySales),
+    hourlySales: restore(seriesTemplates.hourlySales, row.hourlySales),
+  }));
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+  const restoreList = (ids: string[]) => ids.map((id) => {
+    const row = rowsById.get(id);
+    if (!row) throw new Error(`Dashboard transport: unknown row ${id}`);
+    return row;
+  });
+  return {
+    ...dashboard,
+    rows,
+    lowStockHighRotationRows: restoreList(payload.lowStockHighRotationRows),
+    topRotationRows: restoreList(payload.topRotationRows),
+    noSalesRows: restoreList(payload.noSalesRows),
+    overstockRows: restoreList(payload.overstockRows),
+  };
+}
 
 export async function fetchBranches(): Promise<Branch[]> {
   const response = await fetch(apiUrl('/api/branches'));
@@ -21,6 +50,7 @@ export async function fetchDashboard(params: {
   dateEnd?: string | null;
 }): Promise<DashboardResponse> {
   const query = new URLSearchParams();
+  query.set('compact', '1');
   if (params.branch) query.set('branch', params.branch);
   query.set('periodMonths', String(params.periodMonths));
   if (params.search) query.set('search', params.search);
@@ -41,7 +71,7 @@ export async function fetchDashboard(params: {
       throw new Error(`No se pudo cargar el dashboard (HTTP ${response.status}): ${body.slice(0, 180)}`);
     }
   }
-  return response.json();
+  return rehydrateDashboard(await response.json());
 }
 
 export async function fetchProductOverview(periodMonths: number, refresh = false, branch = 'ALMACEN PAS'): Promise<ProductOverviewResponse> {

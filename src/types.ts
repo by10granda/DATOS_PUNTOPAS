@@ -82,6 +82,20 @@ export type DashboardResponse = {
   overstockRows: ProductRow[];
 };
 
+export type CompactDashboardResponse = Omit<DashboardResponse,
+  'rows' | 'lowStockHighRotationRows' | 'topRotationRows' | 'noSalesRows' | 'overstockRows'> & {
+  compact: true;
+  seriesTemplates: { monthlySales: MonthlySale[]; hourlySales: MonthlySale[] };
+  rows: (Omit<ProductRow, 'monthlySales' | 'hourlySales'> & {
+    monthlySales: [number, MonthlySale][];
+    hourlySales: [number, MonthlySale][];
+  })[];
+  lowStockHighRotationRows: string[];
+  topRotationRows: string[];
+  noSalesRows: string[];
+  overstockRows: string[];
+};
+
 export type ProductOverviewRow = ProductRow & {
   valueSold: number;
   soldPrice: number;

@@ -190,3 +190,17 @@ body {
   background-color: #fee2e2 !important;
   color: #7f1d1d !important;
 }
+
+.daily-detail-scroll {
+  overflow-anchor: none;
+}
+
+.premium-shell main tbody tr.daily-detail-spacer,
+.premium-shell main tbody tr.daily-detail-spacer:hover,
+.premium-shell main tbody tr.daily-detail-spacer td {
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none;
+  line-height: 0;
+}
