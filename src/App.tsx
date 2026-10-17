@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, twoDecimals } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, productValue, twoDecimals } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3, 6, 12];
 const showAssistantWidget = false;
@@ -29,7 +29,7 @@ const cloudinaryProductImage = (code: string) => `https://res.cloudinary.com/dy5
 const branchHasImages = (branch: string) => branch === 'ALMACEN PAS';
 
 function ProductImage({ row, className }: { row: ProductRow; className: string }) {
-  if (!branchHasImages(row.branch)) return <span className="text-xs font-bold text-slate-400">Sin imagen</span>;
+  if (!branchHasImages(row.branch)) return <span className="text-xs font-bold text-slate-400">NO HAY</span>;
   return <img src={cloudinaryProductImage(row.code)} alt={row.description} onError={(event) => { event.currentTarget.style.display = 'none'; }} className={className} />;
 }
 
@@ -109,12 +109,12 @@ function App() {
       fetchDashboard({
         branch: selectedBranch,
         periodMonths,
-        search,
-        category: selectedCategory,
-        brand: selectedBrand,
-        line: selectedLine,
-        type: selectedType,
-        productCode: selectedProductCode,
+        search: dailyDetailOpen ? '' : search,
+        category: dailyDetailOpen ? 'TODOS' : selectedCategory,
+        brand: dailyDetailOpen ? 'TODAS' : selectedBrand,
+        line: dailyDetailOpen ? 'TODAS' : selectedLine,
+        type: dailyDetailOpen ? 'TODOS' : selectedType,
+        productCode: dailyDetailOpen ? 'TODOS' : selectedProductCode,
         dateStart: queryMode === 'manual' ? appliedManualRange?.start ?? null : null,
         dateEnd: queryMode === 'manual' ? appliedManualRange?.end ?? null : null,
       })
@@ -139,7 +139,7 @@ function App() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [selectedBranch, periodMonths, search, selectedCategory, selectedBrand, selectedLine, selectedType, selectedProductCode, queryMode, appliedManualRange]);
+  }, [selectedBranch, periodMonths, search, selectedCategory, selectedBrand, selectedLine, selectedType, selectedProductCode, queryMode, appliedManualRange, dailyDetailOpen]);
 
   useEffect(() => {
     setPage(1);
@@ -276,7 +276,7 @@ function App() {
       <main className="mx-auto max-w-[1760px] space-y-4 px-4 py-5">
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
         {dailyDetailOpen && data ? (
-          <DailyDetailPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
+          <DailyDetailPage data={data} scopeTitle={`Vista general de ${selectedBranch ?? 'ALMACEN PAS'}`} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
         ) : recommendationsOpen && data ? (
           <RecommendationsPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setRecommendationsOpen(false)} onRowClick={(row) => setDrawer({ row, periodMonths })} />
         ) : (
@@ -1308,7 +1308,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
     );
     return { row, score };
   });
-  const visibleRows = searchTerm ? scoredRows.filter((item) => item.score > 0).sort((a, b) => b.score - a.score).map((item) => item.row) : rows;
+  const visibleRows = searchTerm ? scoredRows.filter((item) => item.score > 0).map((item) => item.row) : rows;
   const detailSuggestions = searchTerm.length >= 2 ? scoredRows
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -1408,28 +1408,28 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                     <ProductImage row={row} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.code}</td>
-                  <td className="whitespace-normal break-words px-2.5 py-3 font-bold leading-snug" style={{ minWidth: 520, width: 520, maxWidth: 520, overflow: 'visible', textOverflow: 'clip' }} title={row.description}>{row.description}</td>
-                  <td className="px-2.5 py-2">{row.brand}</td>
-                  <td className="px-2.5 py-2">{row.line}</td>
-                  <td className="px-2.5 py-2">{row.category}</td>
-                  <td className="px-2.5 py-2">{row.type}</td>
+                   <td className="whitespace-normal break-words px-2.5 py-3 font-bold leading-snug" style={{ minWidth: 520, width: 520, maxWidth: 520, overflow: 'visible', textOverflow: 'clip' }} title={row.description}>{productValue(row, 'description')}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'brand')}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'line')}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'category')}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'type')}</td>
                   <td className="px-2.5 py-2 font-black text-[#ffbe1b]">{row.salesXMonths}</td>
                   {monthlyQuantityColumns.map((month) => <td key={`${row.id}-${month}`} className="px-2.5 py-2 font-black text-corporateRed">{twoDecimals(monthQuantity(row, month))}</td>)}
-                  <td className="whitespace-nowrap px-2.5 py-2">{row.saleDate || 'NO CONSTA'}</td>
-                  <td className="px-2.5 py-2 font-bold">{money(row.pricePuntoPas)}</td>
-                  <td className="px-2.5 py-2 font-bold">{row.pricePvp === null ? 'NO CONSTA' : money(row.pricePvp)}</td>
-                  <td className="px-2.5 py-2">{row.provider}</td>
-                  <td className="px-2.5 py-2">{money(row.costProvider)}</td>
-                  <td className="px-2.5 py-2">{money(row.costWithIva)}</td>
-                  <td className="px-2.5 py-2"><span className="rounded-lg bg-corporateRed px-2 py-1 font-bold text-white">{row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'}</span></td>
-                  <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{money(row.publicCostWithIva)}</td>
-                  <td className="px-2.5 py-2 font-bold">{money(row.currentPriceWithIva)}</td>
-                  <td className="px-2.5 py-2">{row.lastPurchase || 'NO CONSTA'}</td>
-                  <td className="px-2.5 py-2">{row.lastPurchaseQuantity}</td>
-                  <td className={`px-2.5 py-2 font-black ${Number(row.stockTotal ?? row.stock) <= 0 ? 'rounded-lg bg-red-600 text-white' : 'text-[#18b8b1]'}`}>{row.stockTotal}</td>
-                  {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
-                  <td className="rounded-r-xl px-2.5 py-2 font-black">{percent(row.marginPercent)}</td>
-                  <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{percentTwo(row.currentMarginPercent)}</td>
+                   <td className="whitespace-nowrap px-2.5 py-2">{productValue(row, 'saleDate')}</td>
+                   <td className="px-2.5 py-2 font-bold">{productValue(row, 'pricePuntoPas', money(row.pricePuntoPas))}</td>
+                   <td className="px-2.5 py-2 font-bold">{productValue(row, 'pricePvp', row.pricePvp === null ? 'NO HAY' : money(row.pricePvp))}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'provider')}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'costProvider', money(row.costProvider))}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'costWithIva', money(row.costWithIva))}</td>
+                   <td className="px-2.5 py-2"><span className="rounded-lg bg-corporateRed px-2 py-1 font-bold text-white">{productValue(row, 'salePrice', money(row.salePrice))}</span></td>
+                   <td className="px-2.5 py-2 font-bold text-[#ffbe1b]">{productValue(row, 'publicCostWithIva', money(row.publicCostWithIva))}</td>
+                   <td className="px-2.5 py-2 font-bold">{productValue(row, 'currentPriceWithIva', money(row.currentPriceWithIva))}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'lastPurchase')}</td>
+                   <td className="px-2.5 py-2">{productValue(row, 'lastPurchaseQuantity')}</td>
+                   <td className={`px-2.5 py-2 font-black ${Number(row.stockTotal ?? row.stock) <= 0 ? 'rounded-lg bg-red-600 text-white' : 'text-[#18b8b1]'}`}>{productValue(row, 'stockTotal')}</td>
+                   {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{row.warehouseStocks?.[warehouse] ?? 'NO HAY'}</td>)}
+                   <td className="rounded-r-xl px-2.5 py-2 font-black">{productValue(row, 'marginPercent', percent(row.marginPercent))}</td>
+                   <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{productValue(row, 'currentMarginPercent', percentTwo(row.currentMarginPercent))}</td>
                 </tr>
                 </Fragment>
               ))}
@@ -1441,7 +1441,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </tbody>
           </table>
         </div>
-        {selectedRow && <ProductVariablesModal row={{ ...selectedRow, stockTotal: data.rows.find((row) => row.id === selectedRow.id)?.stockTotal ?? selectedRow.stockTotal }} onClose={() => setSelectedRow(null)} />}
+        {selectedRow && <ProductVariablesModal row={data.rows.find((row) => row.id === selectedRow.id) ?? selectedRow} onClose={() => setSelectedRow(null)} />}
     </section>
   );
 }
@@ -1449,36 +1449,36 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
 function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () => void }) {
   const baseDetails: Array<[string, string | number]> = [
     ['Código', row.code],
-    ['Descripción', row.description],
-    ['Marca', row.brand],
-    ['Línea', row.line],
-    ['Categoría', row.category],
-    ['Tipo', row.type],
-    ['Proveedor', row.provider],
+    ['Descripción', productValue(row, 'description')],
+    ['Marca', productValue(row, 'brand')],
+    ['Línea', productValue(row, 'line')],
+    ['Categoría', productValue(row, 'category')],
+    ['Tipo', productValue(row, 'type')],
+    ['Proveedor', productValue(row, 'provider')],
     ['Cantidad vendida', row.salesXMonths],
-    ['fecha_venta', row.saleDate || 'NO CONSTA'],
-    ['Precio Punto PAS', money(row.pricePuntoPas)],
-    ['Precio PVP', row.pricePvp === null ? 'NO CONSTA' : money(row.pricePvp)],
-    ['Costo Proveedor', money(row.costProvider)],
-    ['Costo + IVA', money(row.costWithIva)],
-    ['precio_venta', row.salePrice > 0 ? money(row.salePrice) : 'NO CONSTA'],
-    ['Costo Público', money(row.publicCost)],
-    ['Costo Público + IVA', money(row.publicCostWithIva)],
-    ['Precio Actual', money(row.currentPriceWithIva)],
-    ['Ganancia Unitaria', money(row.unitProfit)],
-    ['Ganancia Total', money(row.totalProfit)],
-    ['Margen Ganancia %', percent(row.marginPercent)],
-    ['Margen Actual %', percentTwo(row.currentMarginPercent)],
-    ['Stock Total', row.stockTotal],
-    ['Rotación', row.rotation.toFixed(2)],
-    ['Promedio mensual vendido', row.averageMonthlySales.toFixed(2)],
-    ['Cobertura estimada días', row.estimatedDaysInventory >= 999 ? '999+' : row.estimatedDaysInventory],
-    ['Estado Inventario', row.inventoryState],
-    ['Señal Inventario', row.inventorySignal],
-    ['Última Compra', row.lastPurchase || 'NO CONSTA'],
-    ['Cantidad Última Compra', row.lastPurchaseQuantity],
+    ['fecha_venta', productValue(row, 'saleDate')],
+    ['Precio Punto PAS', productValue(row, 'pricePuntoPas', money(row.pricePuntoPas))],
+    ['Precio PVP', productValue(row, 'pricePvp', row.pricePvp === null ? 'NO HAY' : money(row.pricePvp))],
+    ['Costo Proveedor', productValue(row, 'costProvider', money(row.costProvider))],
+    ['Costo + IVA', productValue(row, 'costWithIva', money(row.costWithIva))],
+    ['precio_venta', productValue(row, 'salePrice', money(row.salePrice))],
+    ['Costo Público', productValue(row, 'publicCost', money(row.publicCost))],
+    ['Costo Público + IVA', productValue(row, 'publicCostWithIva', money(row.publicCostWithIva))],
+    ['Precio Actual', productValue(row, 'currentPriceWithIva', money(row.currentPriceWithIva))],
+    ['Ganancia Unitaria', productValue(row, 'unitProfit', money(row.unitProfit))],
+    ['Ganancia Total', productValue(row, 'totalProfit', money(row.totalProfit))],
+    ['Margen Ganancia %', productValue(row, 'marginPercent', percent(row.marginPercent))],
+    ['Margen Actual %', productValue(row, 'currentMarginPercent', percentTwo(row.currentMarginPercent))],
+    ['Stock Total', productValue(row, 'stockTotal')],
+    ['Rotación', productValue(row, 'rotation', row.rotation.toFixed(2))],
+    ['Promedio mensual vendido', productValue(row, 'averageMonthlySales', row.averageMonthlySales.toFixed(2))],
+    ['Cobertura estimada días', productValue(row, 'estimatedDaysInventory', row.estimatedDaysInventory >= 999 ? '999+' : row.estimatedDaysInventory)],
+    ['Estado Inventario', productValue(row, 'inventoryState')],
+    ['Señal Inventario', productValue(row, 'inventorySignal')],
+    ['Última Compra', productValue(row, 'lastPurchase')],
+    ['Cantidad Última Compra', productValue(row, 'lastPurchaseQuantity')],
     ['Sucursal', row.branch],
-    ['Recomendación', row.recommendation],
+    ['Recomendación', productValue(row, 'recommendation')],
   ];
   const warehouseDetails = Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => [warehouse, stock] as [string, number]);
   const salesDetails = row.monthlySales.map((sale) => [sale.month, sale.quantity] as [string, number]);
@@ -1491,7 +1491,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
             <ProductImage row={row} className="h-20 w-20 rounded-2xl border border-cyan-100/15 object-cover" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-black uppercase tracking-[0.25em] text-[#18b8b1]">Variables del producto</div>
-              <h3 className="mt-1 whitespace-normal break-words text-2xl font-black uppercase leading-tight">{row.description}</h3>
+               <h3 className="mt-1 whitespace-normal break-words text-2xl font-black uppercase leading-tight">{productValue(row, 'description')}</h3>
               <div className="mt-1 text-sm font-bold text-cyan-100/60">Código: {row.code}</div>
             </div>
           </div>
@@ -1499,7 +1499,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
         </div>
 
         <VariableGrid title="Datos generales" items={baseDetails} />
-        <VariableGrid title="Bodegas" items={warehouseDetails.length ? warehouseDetails : [['Sin bodegas', 0]]} />
+        <VariableGrid title="Bodegas" items={warehouseDetails.length ? warehouseDetails : [['Sin bodegas', 'NO HAY']]} />
         <VariableGrid title="Ventas por periodo" items={salesDetails} compact />
       </div>
     </div>

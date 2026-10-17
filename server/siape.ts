@@ -32,6 +32,9 @@ type SiapeSaleItem = {
 
 type SiapeCatalogItem = {
   codigo: string;
+  descripcionItem?: string;
+  descripcionMarca?: string;
+  descripcionCategoria?: string;
   precioVentaSinImpuestos?: number;
   precioVentaConImpuestos?: number;
   unidadesVenta?: Array<{
@@ -42,7 +45,9 @@ type SiapeCatalogItem = {
   }>;
 };
 
-const numberValue = (value: unknown) => Number(value ?? 0) || 0;
+const numberValue = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const hasNumber = (value: unknown) => value != null && !(typeof value === 'string' && !value.trim()) && Number.isFinite(Number(value));
+const hasText = (value: unknown) => typeof value === 'string' && !!value.trim() && !/^SIN(?:\s+(?:MARCA|L[I\u00cd]NEA|CATEGOR[I\u00cd]A|TIPO|PROVEEDOR|DESCRIPCI[O\u00d3]N))?$/i.test(value.trim());
 const textValue = (value: unknown, fallback = '') => typeof value === 'string' && value.trim() ? value.trim() : fallback;
 let tokenCache: { baseUrl: string; token: string; expiresAt: number } | null = null;
 
@@ -137,15 +142,6 @@ const fetchJson = async <T>(baseUrl: string, path: string, token: string): Promi
     throw new Error(`Error SIAPE ${response.status} en ${path}`);
   }
   return response.json() as Promise<T>;
-};
-
-const fetchOptionalJson = async <T>(baseUrl: string, path: string, token: string, fallback: T): Promise<T> => {
-  try {
-    return await fetchJson<T>(baseUrl, path, token);
-  } catch (error) {
-    console.warn(`No se pudo cargar ${path}. Se usará fallback.`, error);
-    return fallback;
-  }
 };
 
 const getSaleUnitFactor = (item?: SiapeCatalogItem) => {
@@ -274,7 +270,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
   const [inventory, sales, catalog, stockInventory] = await Promise.all([
     fetchJson<SiapeInventoryItem[]>(baseUrl, '/api/item/reporteinventario', token),
     fetchSales(baseUrl, token, dateStart, dateEnd),
-    fetchOptionalJson<SiapeCatalogItem[]>(baseUrl, '/api/item/search3', token, []),
+    fetchJson<SiapeCatalogItem[]>(baseUrl, '/api/item/search3', token),
     fetchJson<Array<{ codigo: string; disponible: number | string }>>(baseUrl, '/api/item/inventario', token)
   ]);
 
@@ -298,10 +294,14 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
   const priceByProduct = new Map<string, number>();
   const salePricesWithIvaByProduct = new Map<string, Array<{ priceWithIva: number; quantity: number }>>();
   const catalogByProduct = new Map(catalog.map((item) => [item.codigo, item]));
+  const sourceSalesByProduct = new Map<string, SiapeSaleItem[]>();
 
   for (const sale of sales) {
     const code = sale.codigo;
-    if (!saleDescriptionByProduct.has(code)) saleDescriptionByProduct.set(code, textValue(sale.descripcion, code));
+    const sourceSales = sourceSalesByProduct.get(code) ?? [];
+    sourceSales.push(sale);
+    sourceSalesByProduct.set(code, sourceSales);
+    if (!saleDescriptionByProduct.has(code)) saleDescriptionByProduct.set(code, textValue(sale.descripcion));
     const saleDay = dayjs(sale.fecha_venta);
     const month = bucket === 'week' && saleDay.isValid()
       ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}`
@@ -341,25 +341,33 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
   const hours = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
   const inventoryRows = dedupeInventoryByCode(inventory);
   const inventoryCodes = new Set(inventoryRows.map((item) => item.codigo));
-  const soldFallbackRows: SiapeInventoryItem[] = Array.from(salesByProduct.keys()).filter((code) => !inventoryCodes.has(code)).map((code) => {
+  const warehouseAvailabilityByProduct = new Map<string, boolean>();
+  for (const item of inventory) {
+    if (Array.isArray(item.bodegas)) {
+      warehouseAvailabilityByProduct.set(item.codigo, (warehouseAvailabilityByProduct.get(item.codigo) ?? true) && item.bodegas.every((warehouse) => hasNumber(warehouse.stock)));
+    }
+  }
+  const supplementalCodes = new Set([...catalogByProduct.keys(), ...stockByProduct.keys(), ...salesByProduct.keys()]);
+  const supplementalRows: SiapeInventoryItem[] = Array.from(supplementalCodes).filter((code) => !inventoryCodes.has(code)).map((code) => {
     const catalogItem = catalogByProduct.get(code);
-    const price = numberValue(catalogItem?.precioVentaSinImpuestos ?? priceByProduct.get(code));
+    const rawPrice = catalogItem?.precioVentaSinImpuestos ?? sourceSalesByProduct.get(code)?.at(-1)?.precio_venta;
+    const price = numberValue(rawPrice);
     return {
       codigo: code,
-      descripcion: textValue((catalogItem as SiapeCatalogItem & { descripcionItem?: string } | undefined)?.descripcionItem, textValue(saleDescriptionByProduct.get(code), code)),
-      marca: textValue((catalogItem as SiapeCatalogItem & { descripcionMarca?: string } | undefined)?.descripcionMarca, 'SIN MARCA'),
-      linea: 'SIN LÍNEA',
-      categoria: textValue((catalogItem as SiapeCatalogItem & { descripcionCategoria?: string } | undefined)?.descripcionCategoria, 'SIN CATEGORÍA'),
-      tipo: 'SIN TIPO',
+      descripcion: textValue(catalogItem?.descripcionItem, textValue(saleDescriptionByProduct.get(code))),
+      marca: textValue(catalogItem?.descripcionMarca),
+      linea: '',
+      categoria: textValue(catalogItem?.descripcionCategoria),
+      tipo: '',
       disponibilidad: 0,
       dias_en_bodega: 0,
       bodegas: [],
-      niveles_precio: price > 0 ? [{ nivel: 'PVP', precio: price }] : [],
+      niveles_precio: hasNumber(rawPrice) ? [{ nivel: 'PVP', precio: price }] : [],
       proveedores: []
     };
   });
 
-  return [...inventoryRows, ...soldFallbackRows].map((item) => {
+  return [...inventoryRows, ...supplementalRows].map((item) => {
     const provider = item.proveedores?.[0];
     const catalogItem = catalogByProduct.get(item.codigo);
     const puntoPas = item.niveles_precio?.find((level) => textValue(level.nivel).toUpperCase().includes('PUNTO PAS'));
@@ -389,17 +397,51 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
       : undefined;
     const warehouseStocks = mapWarehouseStocks(item.bodegas);
     const stockTotal = stockByProduct.get(item.codigo) ?? 0;
+    const sourceSales = sourceSalesByProduct.get(item.codigo) ?? [];
+    const latestSale = sourceSales.at(-1);
+    const costAvailable = hasNumber(provider?.costo_producto_proveedor ?? latestSale?.precio_costo);
+    const costIvaAvailable = hasNumber(provider?.costo_producto_proveedor_iva) || costAvailable;
+    const priceAvailable = hasNumber(priceLevel?.precio ?? catalogItem?.precioVentaSinImpuestos ?? latestSale?.precio_venta);
+    const salePriceAvailable = sourceSales.length > 0 && sourceSales.every((sale) => hasNumber(sale.precio_venta) && hasNumber(sale.cantidad_vendida));
+    const rowSalePrice = productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0;
+    const quantity = Array.from(productSales.values()).reduce((sum, value) => sum + value, 0);
+    const rowSaleAverage = quantity > 0 && revenueByProduct.get(item.codigo)
+      ? numberValue(revenueByProduct.get(item.codigo)) / quantity / 1.15 : rowSalePrice;
+    const publicIvaAvailable = rowSaleAverage ? salePriceAvailable : priceAvailable;
+    const currentPriceAvailable = effectivePuntoPasPrice ? hasNumber(puntoPas?.precio ?? priceLevel?.precio) : priceAvailable;
+    const quantitiesAvailable = sourceSales.every((sale) => hasNumber(sale.cantidad_vendida));
+    const warehouseStockAvailable = warehouseAvailabilityByProduct.get(item.codigo) ?? false;
+    const profitAvailable = quantitiesAvailable && costIvaAvailable && (sourceSales.length > 0 ? salePriceAvailable : publicIvaAvailable);
+    // These are ProductRow keys; numeric fallbacks remain available to the existing formulas.
+    const availability: Record<string, boolean> = {
+      description: hasText(item.descripcion), brand: hasText(item.marca), line: hasText(item.linea),
+      category: hasText(item.categoria), type: hasText(item.tipo), provider: hasText(provider?.nombre_proveedor),
+      costProvider: costAvailable, costWithIva: costIvaAvailable, publicCost: priceAvailable,
+      publicCostWithIva: publicIvaAvailable, currentPriceWithIva: currentPriceAvailable,
+      pricePuntoPas: hasNumber(puntoPas?.precio ?? priceLevel?.precio), pricePvp: hasNumber(pvp?.precio),
+      salePrice: salePriceAvailable, saleDate: hasText(saleDateByProduct.get(item.codigo)),
+      lastPurchase: hasText(provider?.fecha_ultima_compra) && dayjs(provider?.fecha_ultima_compra).isValid(),
+      lastPurchaseQuantity: hasNumber(provider?.cantidad_ultima_compra_proveedor), stockTotal: stockByProduct.has(item.codigo),
+      unitProfit: profitAvailable, totalProfit: profitAvailable && quantitiesAvailable,
+      marginPercent: costIvaAvailable && publicIvaAvailable, currentMarginPercent: costIvaAvailable && currentPriceAvailable,
+      rotation: warehouseStockAvailable && quantitiesAvailable, estimatedDaysInventory: warehouseStockAvailable && quantitiesAvailable,
+      inventoryState: quantitiesAvailable && (quantity === 0 || warehouseStockAvailable),
+      inventorySignal: warehouseStockAvailable && quantitiesAvailable,
+      recommendation: quantitiesAvailable && (quantity === 0 || warehouseStockAvailable)
+    };
+    const missingFields = Object.keys(availability).filter((key) => !availability[key]);
 
     return {
+      missingFields,
       id: `${branch}-${item.codigo}`,
       branch,
       code: item.codigo,
-      description: item.descripcion,
+      description: textValue(item.descripcion),
       brand: item.marca ?? 'SIN MARCA',
       line: item.linea ?? 'SIN LÍNEA',
       category: item.categoria ?? 'SIN CATEGORÍA',
       type: item.tipo ?? 'SIN TIPO',
-      provider: provider?.nombre_proveedor ?? 'SIN PROVEEDOR',
+      provider: provider?.nombre_proveedor ?? (inventoryCodes.has(item.codigo) ? 'SIN PROVEEDOR' : ''),
       cost: effectiveProviderCost,
       costWithIva: providerCostWithIva,
       price: effectivePrice,

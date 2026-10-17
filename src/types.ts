@@ -5,6 +5,7 @@ export type Branch = { name: string; hasImages?: boolean };
 export type MonthlySale = { month: string; quantity: number; revenue?: number; profit?: number; weekStart?: string; monthLabel?: string };
 
 export type ProductRow = {
+  missingFields?: string[];
   id: string;
   code: string;
   description: string;

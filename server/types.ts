@@ -15,6 +15,7 @@ export type MonthlySale = {
 };
 
 export type ProductRecord = {
+  missingFields?: string[];
   id: string;
   branch: string;
   code: string;
@@ -45,6 +46,7 @@ export type ProductRecord = {
 };
 
 export type ProductRow = {
+  missingFields?: string[];
   id: string;
   code: string;
   description: string;

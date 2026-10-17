@@ -36,6 +36,7 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
         : 'Se recomienda mantener el nivel actual de inventario.';
 
   return {
+    missingFields: product.missingFields ?? [],
     id: product.id,
     code: product.code,
     description: product.description,
@@ -111,7 +112,7 @@ export const buildDashboard = (
     return categoryMatch && brandMatch && lineMatch && typeMatch && productMatch;
   });
 
-  const rows = filtered.map((product) => buildRow(product, params.periodMonths));
+  const rows = filtered.map((product) => buildRow(product, params.periodMonths)).sort((a, b) => b.salesXMonths - a.salesXMonths);
   const monthLabels = Array.from(new Set(filtered.flatMap((product) => product.monthlySales.map((sale) => sale.month))));
   const hourLabels = Array.from({ length: 14 }, (_value, index) => `${String(index + 7).padStart(2, '0')}:00`);
 

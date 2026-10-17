@@ -9,6 +9,12 @@ export const percent = (value: number) => `${value.toFixed(1)}%`;
 export const percentTwo = (value: number) => `${value.toFixed(2)}%`;
 export const twoDecimals = (value: number) => value.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+export const productValue = (row: ProductRow, key: keyof ProductRow, formatted?: string | number): string | number => {
+  const value = row[key];
+  if (row.missingFields?.includes(key) || (typeof value !== 'number' && typeof value !== 'string') || (typeof value === 'string' && !value.trim())) return 'NO HAY';
+  return formatted ?? value;
+};
+
 type ExportOptions = { periodLabel?: string };
 
 export const monthQuantityColumns = (rows: ProductRow[]) => Array.from(new Set(rows.flatMap((row) => row.monthlySales.map((sale) => sale.monthLabel).filter((month): month is string => Boolean(month)))));
@@ -20,28 +26,28 @@ const buildProductExport = (rows: ProductRow[]) => {
   const headers = ['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'];
   const body = rows.map((row) => [
     row.code,
-    row.description,
-    row.brand,
-    row.line,
-    row.category,
-    row.type,
+    productValue(row, 'description'),
+    productValue(row, 'brand'),
+    productValue(row, 'line'),
+    productValue(row, 'category'),
+    productValue(row, 'type'),
     row.salesXMonths,
     ...monthlyColumns.map((month) => monthQuantity(row, month)),
-    row.saleDate || 'NO CONSTA',
-    row.pricePuntoPas,
-    row.pricePvp ?? 'NO CONSTA',
-    row.provider,
-    row.costProvider,
-    row.costWithIva,
-    row.salePrice || 'NO CONSTA',
-    row.publicCostWithIva,
-    row.currentPriceWithIva,
-    row.lastPurchase || 'NO CONSTA',
-    row.lastPurchaseQuantity,
-    row.stockTotal,
-    ...warehouseColumns.map((warehouse) => row.warehouseStocks?.[warehouse] ?? 0),
-    Number(row.marginPercent.toFixed(1)),
-    Number(row.currentMarginPercent.toFixed(2)),
+    productValue(row, 'saleDate'),
+    productValue(row, 'pricePuntoPas'),
+    productValue(row, 'pricePvp'),
+    productValue(row, 'provider'),
+    productValue(row, 'costProvider'),
+    productValue(row, 'costWithIva'),
+    productValue(row, 'salePrice'),
+    productValue(row, 'publicCostWithIva'),
+    productValue(row, 'currentPriceWithIva'),
+    productValue(row, 'lastPurchase'),
+    productValue(row, 'lastPurchaseQuantity'),
+    productValue(row, 'stockTotal'),
+    ...warehouseColumns.map((warehouse) => row.warehouseStocks?.[warehouse] ?? 'NO HAY'),
+    productValue(row, 'marginPercent', Number(row.marginPercent.toFixed(1))),
+    productValue(row, 'currentMarginPercent', Number(row.currentMarginPercent.toFixed(2))),
   ]);
   return { headers, body };
 };
