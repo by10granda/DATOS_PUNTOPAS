@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, productValue, twoDecimals } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, productValue, twoDecimals, warehouseStockLabel } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3, 6, 12];
 const showAssistantWidget = false;
@@ -877,7 +877,7 @@ function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
       <table className="min-w-[1800px] w-full border-separate border-spacing-y-1 text-xs">
         <thead>
           <tr>
-            {['Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades vendidas', 'Precio vendido', 'Valor vendido', 'Valor comprado proveedor', 'Valor comprado proveedor + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
+            {['Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Unidades vendidas', 'Precio vendido', 'Valor vendido', 'Valor comprado proveedor', 'Valor comprado proveedor + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
               <th key={label} className="whitespace-nowrap border-b border-slate-700 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-400">{label}</th>
             ))}
           </tr>
@@ -944,7 +944,7 @@ function ExecutiveSummary({ data, scopeTitle, periodLabel, onRowClick, onTrendCl
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <DarkMetric label="Stock Total" value={data.kpis.totalStock.toLocaleString('es-EC')} />
+            <DarkMetric label="Stock Total Ventas" value={data.kpis.totalStock.toLocaleString('es-EC')} />
             <DarkMetric label="Ganancia" value={money(data.kpis.totalProfit)} />
             <DarkMetric label="Productos" value={data.kpis.totalProducts.toLocaleString('es-EC')} />
             <DarkMetric label="Stock Crítico" value={stockCritical.toLocaleString('es-EC')} danger />
@@ -1147,7 +1147,7 @@ function DataSection({
   const columns: Array<{ key: keyof ProductRow; label: string }> = [
     { key: 'code', label: 'Código' },
     { key: 'description', label: 'Descripción' },
-    { key: 'stockTotal', label: 'Stock Total' },
+    { key: 'stockTotal', label: 'Stock Total Ventas' },
     { key: 'lastPurchaseQuantity', label: 'Cantidad Última Compra' },
     { key: 'salesXMonths', label: 'Cantidad Vendida' },
     { key: 'saleDate', label: 'fecha_venta' },
@@ -1264,7 +1264,7 @@ function RecommendationsPage({ data, scopeTitle, periodLabel, onClose, onRowClic
         <table className="min-w-[1500px] w-full border-separate border-spacing-y-1 text-xs">
           <thead className="sticky top-0 z-20 bg-white shadow-lg shadow-slate-900/10">
             <tr>
-              {['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total', 'Rotación', 'Estado', 'Recomendación'].map((label) => (
+              {['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total Ventas', 'Rotación', 'Estado', 'Recomendación'].map((label) => (
                 <th key={label} className="whitespace-nowrap border-b border-red-200 bg-white px-3 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
               ))}
             </tr>
@@ -1324,7 +1324,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const soldProductsCount = useMemo(() => rows.filter((row) => row.salesXMonths > 0).length, [rows]);
   const warehouseColumns = useMemo(() => Array.from(new Set(visibleRows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es')), [visibleRows]);
   const monthlyQuantityColumns = useMemo(() => monthQuantityColumns(visibleRows), [visibleRows]);
-  const columnLabels = ['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'];
+  const columnLabels = ['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Margen Ganancia %', 'Margen Actual %'];
   const columnKey = JSON.stringify(columnLabels);
   const scrollRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<HTMLTableSectionElement>(null);
@@ -1531,7 +1531,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
     ['Ganancia Total', productValue(row, 'totalProfit', money(row.totalProfit))],
     ['Margen Ganancia %', productValue(row, 'marginPercent', percent(row.marginPercent))],
     ['Margen Actual %', productValue(row, 'currentMarginPercent', percentTwo(row.currentMarginPercent))],
-    ['Stock Total', productValue(row, 'stockTotal')],
+    ['Stock Total Ventas', productValue(row, 'stockTotal')],
     ['Rotación', productValue(row, 'rotation', row.rotation.toFixed(2))],
     ['Promedio mensual vendido', productValue(row, 'averageMonthlySales', row.averageMonthlySales.toFixed(2))],
     ['Cobertura estimada días', productValue(row, 'estimatedDaysInventory', row.estimatedDaysInventory >= 999 ? '999+' : row.estimatedDaysInventory)],
@@ -1542,7 +1542,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
     ['Sucursal', row.branch],
     ['Recomendación', productValue(row, 'recommendation')],
   ];
-  const warehouseDetails = Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => [warehouse, stock] as [string, number]);
+  const warehouseDetails = Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => [warehouseStockLabel(warehouse), stock] as [string, number]);
   const salesDetails = row.monthlySales.map((sale) => [sale.month, sale.quantity] as [string, number]);
 
   return (
@@ -1561,7 +1561,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
         </div>
 
         <VariableGrid title="Datos generales" items={baseDetails} />
-        <VariableGrid title="Bodegas" items={warehouseDetails.length ? warehouseDetails : [['Sin bodegas', 'NO HAY']]} />
+        <VariableGrid title="Stock por bodega" items={warehouseDetails.length ? warehouseDetails : [['Sin bodegas', 'NO HAY']]} />
         <VariableGrid title="Ventas por periodo" items={salesDetails} compact />
       </div>
     </div>
@@ -1601,7 +1601,7 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
 
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-gradient-to-br from-corporateBlue to-slate-950 p-4 text-white shadow-xl">
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Stock Total</div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Stock Total Ventas</div>
             <div className="mt-1 text-3xl font-black">{row.stockTotal}</div>
           </div>
           <div className="rounded-2xl bg-gradient-to-br from-corporateRed to-red-900 p-4 text-white shadow-xl">
@@ -1629,8 +1629,8 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Ganancia Total" value={money(row.totalProfit)} />
           <Detail label="Margen" value={percent(row.marginPercent)} />
           <Detail label="Margen Actual" value={percentTwo(row.currentMarginPercent)} />
-          <Detail label="Stock Total" value={row.stockTotal} />
-          {Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => <Detail key={warehouse} label={warehouse} value={stock} />)}
+          <Detail label="Stock Total Ventas" value={row.stockTotal} />
+          {Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => <Detail key={warehouse} label={warehouseStockLabel(warehouse)} value={stock} />)}
           <Detail label="Última Compra" value={row.lastPurchase} />
           <Detail label="Recomendación" value={row.recommendation} />
         </div>

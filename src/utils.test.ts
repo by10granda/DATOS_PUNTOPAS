@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { productValue } from './utils';
+import { productValue, warehouseStockLabel } from './utils';
 import type { ProductRow } from './types';
 
 test('missing product data displays NO HAY without hiding real zeros', () => {
@@ -15,4 +15,8 @@ test('missing product data displays NO HAY without hiding real zeros', () => {
   assert.equal(productValue(row, 'brand'), 'NO HAY');
   assert.equal(productValue(row, 'provider'), 'NO HAY');
   assert.equal(productValue(row, 'description'), 'Product');
+});
+
+test('warehouse stock labels identify the source warehouse', () => {
+  assert.equal(warehouseStockLabel('BODEGA GENERAL'), 'Stock BODEGA GENERAL');
 });

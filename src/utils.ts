@@ -12,6 +12,8 @@ export const productValue = (row: ProductRow, key: keyof ProductRow, formatted?:
   return formatted ?? value;
 };
 
+export const warehouseStockLabel = (warehouse: string) => `Stock ${warehouse}`;
+
 type ExportOptions = { periodLabel?: string };
 
 export const monthQuantityColumns = (rows: ProductRow[]) => Array.from(new Set(rows.flatMap((row) => row.monthlySales.map((sale) => sale.monthLabel).filter((month): month is string => Boolean(month)))));
@@ -20,7 +22,7 @@ export const monthQuantity = (row: ProductRow, month: string) => row.monthlySale
 const buildProductExport = (rows: ProductRow[]) => {
   const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
   const monthlyColumns = monthQuantityColumns(rows);
-  const headers = ['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns, 'Margen Ganancia %', 'Margen Actual %'];
+  const headers = ['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Margen Ganancia %', 'Margen Actual %'];
   const body = rows.map((row) => [
     row.code,
     productValue(row, 'description'),
@@ -87,7 +89,7 @@ export const exportPdf = async (rows: ProductRow[], title: string, options: Expo
 };
 
 const buildRecommendationExport = (rows: ProductRow[]) => {
-  const headers = ['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total', 'Rotación', 'Estado', 'Recomendación'];
+  const headers = ['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total Ventas', 'Rotación', 'Estado', 'Recomendación'];
   const body = rows.map((row) => [
     row.code,
     row.description,
@@ -150,8 +152,8 @@ export const exportOverviewExcel = async (rows: ProductOverviewRow[], fileName: 
     Línea: row.line,
     Categoría: row.category,
     Tipo: row.type,
-    'Stock Total': row.stockTotal,
-    ...Object.fromEntries(warehouseColumns.map((warehouse) => [warehouse, row.warehouseStocks?.[warehouse] ?? 0])),
+    'Stock Total Ventas': row.stockTotal,
+    ...Object.fromEntries(warehouseColumns.map((warehouse) => [warehouseStockLabel(warehouse), row.warehouseStocks?.[warehouse] ?? 0])),
     'Unidades Vendidas': row.salesXMonths,
     'Precio Vendido': row.soldPrice || 'NO CONSTA',
     'Valor Vendido': row.valueSold,
@@ -193,7 +195,7 @@ export const exportOverviewPdf = async (rows: ProductOverviewRow[], title: strin
     headStyles: { fillColor: [6, 26, 36], textColor: [37, 255, 0], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 247, 251] },
     head: [[
-      'Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns, 'Unidades', 'Precio Vendido', 'Valor Vendido', 'Valor Comprado', 'Valor Comprado + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura', 'Días Sin Venta', 'ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'
+      'Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Unidades', 'Precio Vendido', 'Valor Vendido', 'Valor Comprado', 'Valor Comprado + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura', 'Días Sin Venta', 'ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'
     ]],
     body: rows.map((row) => [
       row.code,
