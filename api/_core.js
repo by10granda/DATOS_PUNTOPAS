@@ -95,9 +95,13 @@ export const authHeaders = (token) => {
   return { [header]: prefix ? `${prefix} ${token}` : token };
 };
 
-const fetchJson = async (baseUrl, path, token) => {
+export const fetchJson = async (baseUrl, path, token) => {
   const response = await fetch(buildUrl(baseUrl, path), { headers: authHeaders(token) });
-  if (!response.ok) throw new Error(`Error SIAPE ${response.status} en ${path}`);
+  if (!response.ok) {
+    const error = new Error(`Error SIAPE ${response.status} en ${path}`);
+    error.status = response.status;
+    throw error;
+  }
   return response.json();
 };
 

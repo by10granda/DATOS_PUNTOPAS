@@ -1,4 +1,4 @@
-import type { DashboardResponse, CompactDashboardResponse, MonthlySale, Branch, ProductOverviewResponse } from './types';
+import type { DashboardResponse, CompactDashboardResponse, MonthlySale, Branch, ProductOverviewResponse, WarehouseStocksResponse } from './types';
 
 const apiUrl = (path: string) => `${path}`;
 
@@ -88,6 +88,18 @@ export async function fetchProductOverview(periodMonths: number, refresh = false
       throw new Error(`No se pudo cargar Total de Productos (HTTP ${response.status}): ${body.slice(0, 180)}`);
     }
   }
+  return response.json();
+}
+
+export async function fetchWarehouseStocks(branch: string, codes: string[], signal?: AbortSignal): Promise<WarehouseStocksResponse> {
+  const response = await fetch(apiUrl('/api/product-warehouses'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branch, codes }),
+    signal,
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`No se pudieron cargar bodegas (HTTP ${response.status})`);
   return response.json();
 }
 
