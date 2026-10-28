@@ -49,7 +49,9 @@ export const loadWarehouseStocks = async (branch, codes, dependencies = {}) => {
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENCY, codes.length) }, worker));
+  const maxConcurrency = Number.isInteger(dependencies.maxConcurrency) && dependencies.maxConcurrency > 0
+    ? dependencies.maxConcurrency : MAX_CONCURRENCY;
+  await Promise.all(Array.from({ length: Math.min(maxConcurrency, codes.length) }, worker));
   const warehouseNames = Array.from(new Set(items.flatMap((item) => Object.keys(item.warehouseStocks)))).sort((a, b) => a.localeCompare(b, 'es'));
   return { branch: name, items, warehouseNames, missingCodes };
 };

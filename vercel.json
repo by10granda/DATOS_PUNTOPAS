@@ -5,7 +5,8 @@
     "api/product-overview.js": { "maxDuration": 60 },
     "api/assistant.js": { "maxDuration": 60 },
     "api/telegram-stock-report.js": { "maxDuration": 60 },
-    "api/telegram-margin-report.js": { "maxDuration": 60 }
+    "api/telegram-margin-report.js": { "maxDuration": 60 },
+    "api/telegram-maderera-report.js": { "maxDuration": 60 }
   },
   "crons": [
     { "path": "/api/product-overview?periodMonths=1&refresh=1", "schedule": "0 6 * * *" },
@@ -16,7 +17,8 @@
     { "path": "/api/telegram-stock-report?branch=STIHL", "schedule": "0 12 * * *" },
     { "path": "/api/telegram-margin-report?branch=ALMACEN%20PAS", "schedule": "0 12 * * *" },
     { "path": "/api/telegram-margin-report?branch=VARIEDADES%20PAS", "schedule": "0 12 * * *" },
-    { "path": "/api/telegram-margin-report?branch=STIHL", "schedule": "0 12 * * *" }
+    { "path": "/api/telegram-margin-report?branch=STIHL", "schedule": "0 12 * * *" },
+    { "path": "/api/telegram-maderera-report", "schedule": "0 12 * * *" }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },

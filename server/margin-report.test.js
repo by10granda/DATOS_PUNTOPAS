@@ -199,6 +199,6 @@ test('Vercel schedules three distinct margin paths at 07:00 Ecuador and preserve
     { path: '/api/telegram-margin-report?branch=VARIEDADES%20PAS', schedule: '0 12 * * *' },
     { path: '/api/telegram-margin-report?branch=STIHL', schedule: '0 12 * * *' },
   ]);
-  assert.equal(config.crons.length, 9);
+  assert.equal(config.crons.length, 10);
   assert.deepEqual(config.functions['api/telegram-margin-report.js'], { maxDuration: 60 });
 });
