@@ -21,7 +21,7 @@ export async function loadMadereraRows() {
     .map((item) => [item.codigo, typeof item.descripcion === 'string' ? item.descripcion.trim() : '']));
   const codes = stockInventory.filter((item) => typeof item?.codigo === 'string' && number(item.disponible) > 0)
     .map((item) => item.codigo);
-  const details = await loadWarehouseStocks(BRANCH, [...new Set(codes)], { maxConcurrency: 20 });
+  const details = await loadWarehouseStocks(BRANCH, [...new Set(codes)], { maxConcurrency: 60 });
   return details.items.map(({ code, warehouseStocks }) => ({
     code,
     description: descriptions.get(code) ?? '',
