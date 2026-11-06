@@ -1327,6 +1327,10 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const soldProductsCount = useMemo(() => rows.filter((row) => row.salesXMonths > 0).length, [rows]);
   const warehouseColumns = useMemo(() => Array.from(new Set([...data.availableWarehouses, ...detailWarehouseNames])).sort((a, b) => a.localeCompare(b, 'es')), [data.availableWarehouses, detailWarehouseNames]);
   const monthlyQuantityColumns = useMemo(() => monthQuantityColumns(visibleRows), [visibleRows]);
+  const rowsForExport = useMemo(() => visibleRows.map((row) => ({
+    ...row,
+    warehouseStocks: detailWarehouseStocks[row.code] ?? row.warehouseStocks,
+  })), [visibleRows, detailWarehouseStocks]);
   const columnLabels = ['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Margen Ganancia %', 'Margen Actual %'];
   const columnKey = JSON.stringify(columnLabels);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1422,7 +1426,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             <div className="text-sm font-bold text-cyan-100/60">Periodo: {periodLabel}</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => exportExcel(visibleRows, 'detalle-ejecutivo-diario', { periodLabel })} className="rounded-full bg-[#18b8b1] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
+            <button onClick={() => exportExcel(rowsForExport, 'detalle-ejecutivo-diario', { periodLabel, warehouseColumns })} className="rounded-full bg-[#18b8b1] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
             <button onClick={() => exportPdf(visibleRows, 'Detalle Ejecutivo Diario', { periodLabel })} className="rounded-full bg-[#ffbe1b] px-4 py-2 text-sm font-black text-[#061a24] shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
             <button onClick={onClose} className="rounded-full bg-white px-5 py-2 font-black text-[#061a24]">Volver al dashboard</button>
           </div>

@@ -14,13 +14,13 @@ export const productValue = (row: ProductRow, key: keyof ProductRow, formatted?:
 
 export const warehouseStockLabel = (warehouse: string) => `Stock ${warehouse}`;
 
-type ExportOptions = { periodLabel?: string };
+type ExportOptions = { periodLabel?: string; warehouseColumns?: string[] };
 
 export const monthQuantityColumns = (rows: ProductRow[]) => Array.from(new Set(rows.flatMap((row) => row.monthlySales.map((sale) => sale.monthLabel).filter((month): month is string => Boolean(month)))));
 export const monthQuantity = (row: ProductRow, month: string) => row.monthlySales.filter((sale) => sale.monthLabel === month).reduce((sum, sale) => sum + sale.quantity, 0);
 
-const buildProductExport = (rows: ProductRow[]) => {
-  const warehouseColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
+const buildProductExport = (rows: ProductRow[], options: ExportOptions = {}) => {
+  const warehouseColumns = Array.from(new Set([...(options.warehouseColumns ?? []), ...rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {}))])).sort((a, b) => a.localeCompare(b, 'es'));
   const monthlyColumns = monthQuantityColumns(rows);
   const headers = ['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Margen Ganancia %', 'Margen Actual %'];
   const body = rows.map((row) => [
@@ -53,7 +53,7 @@ const buildProductExport = (rows: ProductRow[]) => {
 
 export const exportExcel = async (rows: ProductRow[], fileName: string, options: ExportOptions = {}) => {
   const XLSX = await import('xlsx');
-  const { headers, body } = buildProductExport(rows);
+  const { headers, body } = buildProductExport(rows, options);
   const titleRows = options.periodLabel ? [
     ['DETALLE EJECUTIVO DIARIO'],
     [`Rango de fechas: ${options.periodLabel}`],
