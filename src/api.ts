@@ -103,6 +103,17 @@ export async function fetchWarehouseStocks(branch: string, codes: string[], sign
   return response.json();
 }
 
+export async function fetchExportWarehouseStocks(branch: string, codes: string[]): Promise<WarehouseStocksResponse> {
+  const response = await fetch(apiUrl('/api/export-warehouse-stocks'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branch, codes }),
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`No se pudieron cargar bodegas para exportar (HTTP ${response.status})`);
+  return response.json();
+}
+
 export async function askAssistant(params: { question: string; periodMonths: number; branch?: string | null }): Promise<{ answer: string; periodLabel: string }> {
   const response = await fetch(apiUrl('/api/assistant'), {
     method: 'POST',

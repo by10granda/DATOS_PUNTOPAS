@@ -6,7 +6,8 @@
     "api/assistant.js": { "maxDuration": 60 },
     "api/telegram-stock-report.js": { "maxDuration": 60 },
     "api/telegram-margin-report.js": { "maxDuration": 60 },
-    "api/telegram-maderera-report.js": { "maxDuration": 60 }
+    "api/telegram-maderera-report.js": { "maxDuration": 60 },
+    "api/export-warehouse-stocks.js": { "maxDuration": 60 }
   },
   "crons": [
     { "path": "/api/product-overview?periodMonths=1&refresh=1", "schedule": "0 6 * * *" },

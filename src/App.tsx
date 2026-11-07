@@ -1,7 +1,7 @@
 import { Fragment, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { askAssistant, fetchBranches, fetchDashboard, fetchWarehouseStocks } from './api';
+import { askAssistant, fetchBranches, fetchDashboard, fetchExportWarehouseStocks, fetchWarehouseStocks } from './api';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
 import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, productValue, twoDecimals, warehouseStockLabel } from './utils';
 
@@ -1383,20 +1383,20 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
     let warehouseStocks = detailWarehouseStocks;
     let exportWarehouseColumns = warehouseColumns;
     try {
-      // A product detail lists every branch warehouse, including those with zero stock.
-      const firstRow = visibleRows[0];
-      if (data.branch && firstRow) {
-        const result = await fetchWarehouseStocks(data.branch, [firstRow.code]);
-        const firstItem = result.items[0];
-        if (firstItem) {
-          warehouseStocks = { ...warehouseStocks, [firstItem.code]: firstItem.warehouseStocks };
+      if (data.branch && visibleRows.length) {
+        const result = await fetchExportWarehouseStocks(data.branch, visibleRows.map((row) => row.code));
+        const loadedStocks = Object.fromEntries(result.items.map((item) => [item.code, item.warehouseStocks]));
+        if (result.items.length) {
+          warehouseStocks = { ...warehouseStocks, ...loadedStocks };
           exportWarehouseColumns = Array.from(new Set([...exportWarehouseColumns, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es'));
-          setDetailWarehouseStocks((current) => ({ ...current, [firstItem.code]: firstItem.warehouseStocks }));
+          setDetailWarehouseStocks((current) => ({ ...current, ...loadedStocks }));
           setDetailWarehouseNames((current) => Array.from(new Set([...current, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es')));
         }
       }
     } catch {
-      // Export the values already available if the optional column lookup fails.
+      window.alert('No se pudieron cargar todas las bodegas. Intenta exportar nuevamente.');
+      setExportingExcel(false);
+      return;
     }
     try {
       await exportExcel(visibleRows.map((row) => ({ ...row, warehouseStocks: warehouseStocks[row.code] ?? row.warehouseStocks })),
