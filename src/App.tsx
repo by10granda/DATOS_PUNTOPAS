@@ -1384,13 +1384,18 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
     let exportWarehouseColumns = warehouseColumns;
     try {
       if (data.branch && visibleRows.length) {
-        const result = await fetchExportWarehouseStocks(data.branch, visibleRows.map((row) => row.code));
-        const loadedStocks = Object.fromEntries(result.items.map((item) => [item.code, item.warehouseStocks]));
-        if (result.items.length) {
-          warehouseStocks = { ...warehouseStocks, ...loadedStocks };
-          exportWarehouseColumns = Array.from(new Set([...exportWarehouseColumns, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es'));
-          setDetailWarehouseStocks((current) => ({ ...current, ...loadedStocks }));
-          setDetailWarehouseNames((current) => Array.from(new Set([...current, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es')));
+        // A positive warehouse balance is part of SIAPE's total available stock.
+        // This matches the successful Maderera report query and avoids thousands of zero-stock details.
+        const codesWithStock = visibleRows.filter((row) => Number(row.stockTotal) > 0).map((row) => row.code);
+        if (codesWithStock.length) {
+          const result = await fetchExportWarehouseStocks(data.branch, codesWithStock);
+          const loadedStocks = Object.fromEntries(result.items.map((item) => [item.code, item.warehouseStocks]));
+          if (result.items.length) {
+            warehouseStocks = { ...warehouseStocks, ...loadedStocks };
+            exportWarehouseColumns = Array.from(new Set([...exportWarehouseColumns, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es'));
+            setDetailWarehouseStocks((current) => ({ ...current, ...loadedStocks }));
+            setDetailWarehouseNames((current) => Array.from(new Set([...current, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es')));
+          }
         }
       }
     } catch {
@@ -1399,7 +1404,8 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
       return;
     }
     try {
-      await exportExcel(visibleRows.map((row) => ({ ...row, warehouseStocks: warehouseStocks[row.code] ?? row.warehouseStocks })),
+      const emptyWarehouseStocks = Object.fromEntries(exportWarehouseColumns.map((warehouse) => [warehouse, 0]));
+      await exportExcel(visibleRows.map((row) => ({ ...row, warehouseStocks: { ...emptyWarehouseStocks, ...row.warehouseStocks, ...warehouseStocks[row.code] } })),
         'detalle-ejecutivo-diario', { periodLabel, warehouseColumns: exportWarehouseColumns });
     } finally {
       setExportingExcel(false);
