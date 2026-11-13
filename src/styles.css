@@ -195,6 +195,178 @@ body {
   overflow-anchor: none;
 }
 
+/* Dashboard de Datos - estilo Power BI */
+.bi-hero {
+  background:
+    radial-gradient(circle at 92% 8%, rgba(37, 99, 235, 0.42), transparent 22rem),
+    linear-gradient(120deg, #0b1f3a 0%, #12325a 55%, #0c3f6d 100%);
+  border-radius: 1.6rem;
+  box-shadow: 0 24px 55px rgba(15, 23, 42, 0.28);
+}
+
+.premium-shell main .bi-hero,
+.premium-shell main .bi-hero * {
+  color: #ffffff;
+}
+
+.premium-shell main .bi-hero .bi-muted {
+  color: rgba(219, 234, 254, 0.78);
+}
+
+.bi-card {
+  background: #ffffff;
+  border: 1px solid #e5eaf1;
+  border-radius: 1.35rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+}
+
+.bi-kpi {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e5eaf1;
+  border-radius: 1.1rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+}
+
+.bi-kpi::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--bi-accent, #1d4ed8);
+}
+
+.bi-select {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  color: #0f172a !important;
+  font-size: 0.8rem;
+  font-weight: 800;
+  outline: none;
+}
+
+.bi-select:focus {
+  border-color: #1d4ed8 !important;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.16);
+}
+
+.bi-input {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 0.7rem;
+  padding: 0.55rem 2rem 0.55rem 0.7rem;
+  color: #0f172a !important;
+  font-size: 0.8rem;
+  font-weight: 800;
+  outline: none;
+}
+
+.bi-input::placeholder {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.bi-input:focus {
+  border-color: #1d4ed8 !important;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.16);
+}
+
+.premium-shell main .bi-hero select.bi-select {
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #0f172a !important;
+}
+
+.premium-shell main .bi-btn-primary {
+  background: #1d4ed8 !important;
+  border: 1px solid #1d4ed8 !important;
+  color: #ffffff !important;
+  border-radius: 0.7rem;
+  padding: 0.58rem 0.95rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(29, 78, 216, 0.35);
+}
+
+.premium-shell main .bi-btn-primary:hover {
+  background: #1e40af !important;
+  border-color: #1e40af !important;
+  color: #ffffff !important;
+}
+
+.premium-shell main .bi-btn-ghost {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+  border-radius: 0.7rem;
+  padding: 0.58rem 0.95rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.premium-shell main .bi-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.premium-shell main .bi-range {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.premium-shell main .bi-range:hover {
+  border-color: #1d4ed8 !important;
+  color: #1d4ed8 !important;
+}
+
+.premium-shell main .bi-range-active {
+  background: #0f2a4a !important;
+  border: 1px solid #0f2a4a !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(15, 42, 74, 0.28);
+}
+
+.bi-table {
+  border-collapse: separate;
+  border-spacing: 0 4px;
+}
+
+.bi-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f1f5f9;
+  color: #475569 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.bi-table tbody tr {
+  background: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
+}
+
+.bi-table tbody tr:hover {
+  background: #f8fbff !important;
+}
+
+.bi-table tbody td {
+  border-bottom: 1px solid #eef2f7 !important;
+  padding: 0.5rem 0.65rem;
+  color: #334155;
+}
+
 .premium-shell main tbody tr.daily-detail-spacer,
 .premium-shell main tbody tr.daily-detail-spacer:hover,
 .premium-shell main tbody tr.daily-detail-spacer td {

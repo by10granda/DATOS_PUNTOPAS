@@ -1,11 +1,24 @@
 import { fetchJson, getToken, resolveBranchConfig } from './_core.js';
 
-const CACHE_TTL_MS = 25 * 1000;
-const MAX_CODES = 40;
-const MAX_CONCURRENCY = 6;
-const CODE_PATTERN = /^[A-Za-z0-9._/-]+$/;
+export const maxDuration = 60;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const MAX_CODES = 250;
+const MAX_CONCURRENCY = 20;
+// SIAPE uses real codes with spaces and other printable characters (e.g. "F 19").
+// The code is URL-encoded before use, so allow any printable value up to 25 chars.
+const CODE_PATTERN = /^[^\u0000-\u001F\u007F]+$/;
 const successfulCache = new Map();
 const inFlight = new Map();
+let lastCacheCleanup = 0;
+
+const cleanupExpiredCache = () => {
+  const now = Date.now();
+  if (now - lastCacheCleanup < 60 * 1000) return;
+  lastCacheCleanup = now;
+  for (const [key, value] of successfulCache) {
+    if (value.expiresAt <= now) successfulCache.delete(key);
+  }
+};
 
 const normalizeWarehouseName = (value) => typeof value === 'string' ? value.trim().toUpperCase() : '';
 
@@ -59,6 +72,7 @@ export const loadWarehouseStocks = async (branch, codes, dependencies = {}) => {
 const cacheKey = (branch, code) => `${branch}\u0000${code}`;
 
 const loadCachedWarehouseStocks = async (branch, codes) => {
+  cleanupExpiredCache();
   const results = new Map();
   const newCodes = [];
   for (const code of codes) {
@@ -115,7 +129,7 @@ export default async function handler(req, res) {
     const items = cachedItems.map((cached) => cached.item);
     const warehouseNames = Array.from(new Set(items.flatMap((item) => Object.keys(item.warehouseStocks)))).sort((a, b) => a.localeCompare(b, 'es'));
     const missingCodes = cachedItems.filter((cached) => cached.missing).map((cached) => cached.item.code);
-    res.setHeader('Cache-Control', 'private, max-age=30');
+    res.setHeader('Cache-Control', 'private, max-age=600');
     return res.status(200).json({ branch: request.branch, items, warehouseNames, missingCodes });
   } catch (error) {
     return res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar bodegas desde SIAPE' });

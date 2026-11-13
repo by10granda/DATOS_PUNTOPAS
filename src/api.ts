@@ -1,6 +1,86 @@
-import type { DashboardResponse, CompactDashboardResponse, MonthlySale, Branch, ProductOverviewResponse, WarehouseStocksResponse } from './types';
+import type {
+  DashboardResponse,
+  CompactDashboardResponse,
+  MonthlySale,
+  Branch,
+  ProductOverviewResponse,
+  DataDashboardResponse,
+  CompactDataDashboardResponse,
+  DataDashboardRow,
+} from './types';
 
 const apiUrl = (path: string) => `${path}`;
+
+export function rehydrateDataDashboard(payload: DataDashboardResponse | CompactDataDashboardResponse): DataDashboardResponse {
+  if (!('compact' in payload) || payload.compact !== true) return payload as DataDashboardResponse;
+  const { compact: _compact, dictionaries, rows, ...meta } = payload;
+  const axis = payload.weeklyUnitsSeries;
+  const restoreSales = (flat: number[]): MonthlySale[] => {
+    const points: MonthlySale[] = axis.map((point) => ({
+      month: point.week,
+      quantity: 0,
+      revenue: 0,
+      profit: 0,
+      ...(point.weekStart ? { weekStart: point.weekStart } : {}),
+      ...(point.monthLabel ? { monthLabel: point.monthLabel } : {}),
+    }));
+    for (let index = 0; index + 3 < flat.length; index += 4) {
+      const bucket = flat[index];
+      const base = points[bucket];
+      if (!base) continue;
+      points[bucket] = { ...base, quantity: flat[index + 1], revenue: flat[index + 2], profit: flat[index + 3] };
+    }
+    return points;
+  };
+  const restoredRows: DataDashboardRow[] = rows.map((tuple) => {
+    const [
+      code,
+      description,
+      line,
+      category,
+      brand,
+      type,
+      stockTotal,
+      warehousePairs,
+      lastPurchase,
+      lastPurchaseQuantity,
+      costWithIva,
+      provider,
+      missingFields,
+      pricePuntoPas,
+      publicCost,
+      currentPriceWithIva,
+      currentMarginPercent,
+      sparseSales,
+    ] = tuple;
+    const warehouseStocks: Record<string, number> = {};
+    for (let index = 0; index + 1 < warehousePairs.length; index += 2) {
+      const name = dictionaries.warehouse[warehousePairs[index]];
+      if (name !== undefined) warehouseStocks[name] = warehousePairs[index + 1];
+    }
+    return {
+      code,
+      description,
+      line: dictionaries.line[line] ?? '',
+      category: dictionaries.category[category] ?? '',
+      brand: dictionaries.brand[brand] ?? '',
+      type: dictionaries.type[type] ?? '',
+      stockTotal,
+      warehouseStocks,
+      lastPurchase: dictionaries.lastPurchase[lastPurchase] ?? '',
+      lastPurchaseQuantity,
+      costWithIva,
+      provider: dictionaries.provider[provider] ?? '',
+      missingFields: [...(dictionaries.missing[missingFields] ?? [])],
+      pricePuntoPas,
+      publicCost,
+      currentPriceWithIva,
+      currentMarginPercent,
+      monthlySales: restoreSales(sparseSales),
+    };
+  });
+  return { ...meta, weeklyUnitsSeries: axis, rows: restoredRows };
+}
 
 export function rehydrateDashboard(payload: DashboardResponse | CompactDashboardResponse): DashboardResponse {
   if (!('compact' in payload) || payload.compact !== true) return payload as DashboardResponse;
@@ -91,27 +171,28 @@ export async function fetchProductOverview(periodMonths: number, refresh = false
   return response.json();
 }
 
-export async function fetchWarehouseStocks(branch: string, codes: string[], signal?: AbortSignal): Promise<WarehouseStocksResponse> {
-  const response = await fetch(apiUrl('/api/product-warehouses'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ branch, codes }),
-    signal,
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(`No se pudieron cargar bodegas (HTTP ${response.status})`);
-  return response.json();
-}
-
-export async function fetchExportWarehouseStocks(branch: string, codes: string[]): Promise<WarehouseStocksResponse> {
-  const response = await fetch(apiUrl('/api/export-warehouse-stocks'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ branch, codes }),
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(`No se pudieron cargar bodegas para exportar (HTTP ${response.status})`);
-  return response.json();
+export async function fetchDataDashboard(params: {
+  branch: string;
+  bucket: 'week' | 'day';
+  months?: number;
+  days?: number;
+  refresh?: boolean;
+}): Promise<DataDashboardResponse> {
+  const query = new URLSearchParams({ branch: params.branch, bucket: params.bucket });
+  if (params.bucket === 'day') query.set('days', String(params.days ?? 7));
+  else query.set('months', String(params.months ?? 12));
+  if (params.refresh) query.set('refresh', '1');
+  const response = await fetch(apiUrl(`/api/data-dashboard?${query.toString()}`), { cache: 'no-store' });
+  if (!response.ok) {
+    const body = await response.text();
+    try {
+      const error = JSON.parse(body) as { message?: string };
+      throw new Error(error?.message ? `${error.message} (HTTP ${response.status})` : `No se pudo cargar el Dashboard de Datos (HTTP ${response.status})`);
+    } catch {
+      throw new Error(`No se pudo cargar el Dashboard de Datos (HTTP ${response.status}): ${body.slice(0, 180)}`);
+    }
+  }
+  return rehydrateDataDashboard(await response.json());
 }
 
 export async function askAssistant(params: { question: string; periodMonths: number; branch?: string | null }): Promise<{ answer: string; periodLabel: string }> {

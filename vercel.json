@@ -3,10 +3,12 @@
     "api/dashboard.js": { "maxDuration": 60 },
     "api/debug-siape.js": { "maxDuration": 60 },
     "api/product-overview.js": { "maxDuration": 60 },
+    "api/data-dashboard.js": { "maxDuration": 60 },
     "api/assistant.js": { "maxDuration": 60 },
     "api/telegram-stock-report.js": { "maxDuration": 60 },
     "api/telegram-margin-report.js": { "maxDuration": 60 },
     "api/telegram-maderera-report.js": { "maxDuration": 60 },
+    "api/product-warehouses.js": { "maxDuration": 60 },
     "api/export-warehouse-stocks.js": { "maxDuration": 60 }
   },
   "crons": [

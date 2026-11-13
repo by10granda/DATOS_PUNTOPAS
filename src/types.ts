@@ -149,3 +149,93 @@ export type ProductOverviewResponse = {
   availableWarehouses: string[];
   rows: ProductOverviewRow[];
 };
+
+/**
+ * Slim row used by /api/data-dashboard. Only the fields the BI page renders are
+ * transported, which keeps the payload small enough for serverless responses.
+ */
+export type DataDashboardRow = {
+  code: string;
+  description: string;
+  line: string;
+  category: string;
+  brand: string;
+  type: string;
+  stockTotal: number;
+  warehouseStocks: Record<string, number>;
+  lastPurchase: string;
+  lastPurchaseQuantity: number;
+  costWithIva: number;
+  provider: string;
+  missingFields: string[];
+  pricePuntoPas: number;
+  publicCost: number;
+  currentPriceWithIva: number;
+  currentMarginPercent: number;
+  monthlySales: MonthlySale[];
+};
+
+export type DataDashboardResponse = {
+  branch: string;
+  periodMonths: PeriodMonths;
+  dateStart: string;
+  dateEnd: string;
+  periodLabel: string;
+  generatedAt: string;
+  weeklyUnitsSeries: { week: string; quantity: number; weekStart?: string; monthLabel?: string }[];
+  rows: DataDashboardRow[];
+};
+
+export type DataDashboardDictionaries = {
+  line: string[];
+  category: string[];
+  brand: string[];
+  type: string[];
+  provider: string[];
+  missing: string[][];
+  warehouse: string[];
+  lastPurchase: string[];
+};
+
+/**
+ * Positional row transport (18 slots):
+ * [code, description, line, category, brand, type, stockTotal,
+ *  warehousePairs, lastPurchase, lastPurchaseQuantity, costWithIva, provider,
+ *  missingFields, pricePuntoPas, publicCost, currentPriceWithIva,
+ *  currentMarginPercent, sparseSales]
+ * String slots are dictionary indexes; sparseSales is a flat
+ * [bucketIndex, quantity, revenue, profit, ...] list.
+ */
+export type DataDashboardTuple = [
+  string,
+  string,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number[],
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number[]
+];
+
+export type CompactDataDashboardResponse = {
+  compact: true;
+  branch: string;
+  periodMonths: PeriodMonths;
+  dateStart: string;
+  dateEnd: string;
+  periodLabel: string;
+  generatedAt: string;
+  weeklyUnitsSeries: DataDashboardResponse['weeklyUnitsSeries'];
+  dictionaries: DataDashboardDictionaries;
+  rows: DataDashboardTuple[];
+};

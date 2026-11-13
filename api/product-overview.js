@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { buildProductOverview, loadSiapeProducts, resolveBranchConfig } from './_core.js';
+import { buildProductOverview, loadBranchData, resolveBranchConfig } from './_core.js';
 
 export const maxDuration = 60;
 
@@ -25,8 +25,8 @@ export default async function handler(req, res) {
     const cached = cache.get(cacheKey);
     if (cached && !force) return res.status(200).json(cached);
     const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
-    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey, generatedAt });
+    const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey, generatedAt, warehouseNames });
     cache.clear();
     cache.set(cacheKey, payload);
     return res.status(200).json(payload);

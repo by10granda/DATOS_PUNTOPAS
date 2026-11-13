@@ -3,7 +3,7 @@ import { resolveBranchConfig } from './_core.js';
 
 export const maxDuration = 60;
 const MAX_CODES = 10_000;
-const CODE_PATTERN = /^[A-Za-z0-9._/-]+$/;
+const CODE_PATTERN = /^[^\u0000-\u001F\u007F]+$/;
 
 const validRequest = (body) => {
   if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 2) return null;

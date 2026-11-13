@@ -5,8 +5,9 @@ import morgan from 'morgan';
 import path from 'node:path';
 import fs from 'node:fs';
 import dayjs from 'dayjs';
-import { buildDashboard, buildProductOverview, compactDashboard } from './analytics';
-import { loadSiapeProducts, resolveBranchConfig } from './siape';
+import { buildDashboard, buildProductOverview, compactDashboard, compactProductOverview } from './analytics';
+import { createSnapshotLoader, loadSiapeProducts, loadWarehouseNames, resolveBranchConfig } from './siape';
+import type { SiapeSnapshot } from './siape';
 import type { Branch, PeriodMonths } from './types';
 
 const app = express();
@@ -24,6 +25,30 @@ const branches: Branch[] = [
 
 const maxRangeMonths = 12;
 const overviewCache = new Map<string, { generatedAt: string; payload: unknown }>();
+const snapshotLoaders = new Map<string, () => Promise<SiapeSnapshot>>();
+
+const snapshotLoaderFor = (branch: string) => {
+  const cached = snapshotLoaders.get(branch);
+  if (cached) return cached;
+  const loader = createSnapshotLoader(branch);
+  snapshotLoaders.set(branch, loader);
+  return loader;
+};
+
+/** Loads products and the warehouse column list sharing one cached SIAPE snapshot. */
+const loadBranchData = async (
+  dateStart: string,
+  dateEnd: string,
+  bucket: 'hour' | 'week' | 'day',
+  branch: string,
+) => {
+  const loadSnapshot = snapshotLoaderFor(branch);
+  const [products, warehouseNames] = await Promise.all([
+    loadSiapeProducts(dateStart, dateEnd, bucket, branch, { loadSnapshot }),
+    loadWarehouseNames(branch, { loadSnapshot }),
+  ]);
+  return { products, warehouseNames };
+};
 
 const countInclusiveMonths = (dateStart: string, dateEnd: string) => {
   const start = dayjs(dateStart).startOf('month');
@@ -80,8 +105,8 @@ app.get('/api/dashboard', async (req, res) => {
     }
 
     resolveBranchConfig(branch);
-    const products = await loadSiapeProducts(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
-    const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd });
+    const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
+    const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, warehouseNames });
     res.json(req.query.compact === '1' ? compactDashboard(payload) : payload);
   } catch (error) {
     res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar datos desde SIAPE' });
@@ -109,13 +134,55 @@ app.get('/api/product-overview', async (req, res) => {
       return;
     }
     const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-    const products = await loadSiapeProducts(dateStart, dateEnd, 'week', branch);
-    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey, generatedAt });
+    const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, 'week', branch);
+    const payload = buildProductOverview(products, { branch, periodMonths, dateStart, dateEnd, cacheKey, generatedAt, warehouseNames });
     overviewCache.clear();
     overviewCache.set(cacheKey, { generatedAt, payload });
     res.json(payload);
   } catch (error) {
     res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar vista general de productos' });
+  }
+});
+
+const dataDashboardCache = new Map<string, { generatedAt: string; payload: unknown }>();
+
+app.get('/api/data-dashboard', async (req, res) => {
+  const branch = typeof req.query.branch === 'string' && req.query.branch.length > 0 ? req.query.branch : 'ALMACEN PAS';
+  const bucket = req.query.bucket === 'day' ? 'day' as const : 'week' as const;
+  const months = Math.min(12, Math.max(1, Number(req.query.months ?? 12))) as PeriodMonths;
+  const days = Math.min(31, Math.max(1, Number(req.query.days ?? 7)));
+  const force = req.query.refresh === '1';
+  const end = dayjs();
+  const start = bucket === 'day'
+    ? end.subtract(days - 1, 'day')
+    : end.subtract(months, 'month').add(1, 'day');
+  const dateStart = start.format('YYYY-MM-DD');
+  const dateEnd = end.format('YYYY-MM-DD');
+  const cacheKey = `${branch}-${bucket}-${bucket === 'day' ? days : months}-${dateStart}-${dateEnd}`;
+
+  try {
+    resolveBranchConfig(branch);
+    const cached = dataDashboardCache.get(cacheKey);
+    if (cached && !force) {
+      res.json(cached.payload);
+      return;
+    }
+    const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+    const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, bucket, branch);
+    const payload = compactProductOverview(buildProductOverview(products, {
+      branch,
+      periodMonths: bucket === 'day' ? 1 : months,
+      dateStart,
+      dateEnd,
+      cacheKey,
+      generatedAt,
+      warehouseNames
+    }));
+    dataDashboardCache.clear();
+    dataDashboardCache.set(cacheKey, { generatedAt, payload });
+    res.json(payload);
+  } catch (error) {
+    res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar el dashboard de datos' });
   }
 });
 

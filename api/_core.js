@@ -105,6 +105,102 @@ export const fetchJson = async (baseUrl, path, token) => {
   return response.json();
 };
 
+const fetchSnapshot = async (baseUrl, token) => {
+  const [inventory, catalog, stockInventory] = await Promise.all([
+    fetchJson(baseUrl, '/api/item/reporteinventario', token),
+    fetchJson(baseUrl, '/api/item/search3', token),
+    fetchJson(baseUrl, '/api/item/inventario', token)
+  ]);
+  if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
+  return { inventory, catalog, stockInventory };
+};
+
+const SNAPSHOT_TTL_MS = Number(process.env.SIAPE_SNAPSHOT_TTL_MS ?? 5 * 60 * 1000);
+
+// Inventory, catalog and stock do not depend on the sales period. Memoizing them per
+// branch keeps the dashboard, the BI page and the Excel export from downloading the
+// same catalog on every request.
+export const createSnapshotLoader = (branchName, ttlMs = SNAPSHOT_TTL_MS) => {
+  let cached = null;
+  let inFlight = null;
+  return async () => {
+    if (ttlMs > 0 && cached && Date.now() - cached.loadedAt < ttlMs) return cached.value;
+    if (inFlight) return inFlight;
+    inFlight = (async () => {
+      const { baseUrl, user, password } = resolveBranchConfig(branchName);
+      const token = await getToken(baseUrl, { user, password, branch: branchName });
+      const value = await fetchSnapshot(baseUrl, token);
+      if (ttlMs > 0) cached = { value, loadedAt: Date.now() };
+      return value;
+    })().finally(() => { inFlight = null; });
+    return inFlight;
+  };
+};
+
+const warehouseNamesCache = new Map();
+
+// `reporteinventario` only lists warehouses that hold stock; a few `/api/item`
+// probes discover the empty ones so the Excel export keeps every column.
+export const loadWarehouseNames = async (branchName, options = {}) => {
+  const ttlMs = options.ttlMs ?? SNAPSHOT_TTL_MS;
+  const config = resolveBranchConfig(branchName);
+  const cacheKey = `${config.baseUrl}\u0000${branchName}`;
+  const cached = warehouseNamesCache.get(cacheKey);
+  if (ttlMs > 0 && cached && Date.now() - cached.loadedAt < ttlMs) return cached.names;
+
+  const loadSnapshot = options.loadSnapshot ?? createSnapshotLoader(branchName);
+  const snapshot = await loadSnapshot();
+  const names = new Set();
+  for (const item of snapshot.inventory) {
+    for (const warehouse of item.bodegas ?? []) {
+      const name = textValue(warehouse?.bodegaALMACEN, '').toUpperCase();
+      if (name) names.add(name);
+    }
+  }
+
+  const probeCodes = Array.from(new Set(
+    snapshot.inventory
+      .filter((item) => Array.isArray(item.bodegas) && item.bodegas.length > 0)
+      .map((item) => item.codigo)
+  )).slice(0, Math.max(0, options.probeLimit ?? 8));
+
+  if (probeCodes.length) {
+    const { baseUrl, user, password } = resolveBranchConfig(branchName);
+    const token = await getToken(baseUrl, { user, password, branch: branchName });
+    await Promise.all(probeCodes.map(async (code) => {
+      try {
+        const detail = await fetchJson(baseUrl, `/api/item?code=${encodeURIComponent(code)}`, token);
+        for (const warehouse of detail?.stockBodega ?? []) {
+          const name = textValue(warehouse?.txDescripcionBodega, '').toUpperCase();
+          if (name) names.add(name);
+        }
+      } catch {
+        // A failed probe only hides an empty warehouse column.
+      }
+    }));
+  }
+
+  const sorted = Array.from(names).sort((a, b) => a.localeCompare(b, 'es'));
+  if (ttlMs > 0) warehouseNamesCache.set(cacheKey, { names: sorted, loadedAt: Date.now() });
+  return sorted;
+};
+
+const branchSnapshotLoaders = new Map();
+
+/** Loads products plus the full warehouse column list sharing one cached snapshot. */
+export const loadBranchData = async (dateStart, dateEnd, bucket, branch) => {
+  let loadSnapshot = branchSnapshotLoaders.get(branch);
+  if (!loadSnapshot) {
+    loadSnapshot = createSnapshotLoader(branch);
+    branchSnapshotLoaders.set(branch, loadSnapshot);
+  }
+  const [products, warehouseNames] = await Promise.all([
+    loadSiapeProducts(dateStart, dateEnd, bucket, branch, { loadSnapshot }),
+    loadWarehouseNames(branch, { loadSnapshot })
+  ]);
+  return { products, warehouseNames };
+};
+
 const dedupeInventoryByCode = (inventory) => {
   const byCode = new Map();
   for (const item of inventory) {
@@ -221,12 +317,12 @@ const normalizeProviderCostWithIva = (rawCostWithIva, providerCost, publicPriceW
 export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', branchName = 'ALMACEN PAS', options = {}) => {
   const { name: branch, baseUrl, user, password } = resolveBranchConfig(branchName);
   const token = await getToken(baseUrl, { user, password, branch });
-  const [inventory, sales, catalog, stockInventory] = await Promise.all([
-    fetchJson(baseUrl, '/api/item/reporteinventario', token),
-    fetchSales(baseUrl, token, dateStart, dateEnd, options),
-    fetchJson(baseUrl, '/api/item/search3', token),
-    fetchJson(baseUrl, '/api/item/inventario', token)
+  const loadSnapshot = options.loadSnapshot ?? (() => fetchSnapshot(baseUrl, token));
+  const [snapshot, sales] = await Promise.all([
+    loadSnapshot(),
+    fetchSales(baseUrl, token, dateStart, dateEnd, options)
   ]);
+  const { inventory, catalog, stockInventory } = snapshot;
 
   if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
   const stockByProduct = new Map();
@@ -257,7 +353,11 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
     sourceSalesByProduct.set(code, sourceSales);
     if (!saleDescriptionByProduct.has(code)) saleDescriptionByProduct.set(code, sale.descripcion);
     const saleDay = dayjs(sale.fecha_venta);
-    const hour = bucket === 'week' && saleDay.isValid() ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}` : saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
+    const hour = bucket === 'week' && saleDay.isValid()
+      ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}`
+      : bucket === 'day' && saleDay.isValid()
+        ? saleDay.format('DD/MM/YYYY')
+        : saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
     const hourOfDay = saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
     const productSales = salesByProduct.get(code) ?? new Map();
     const productHourlySales = hourlySalesByProduct.get(code) ?? new Map();
@@ -289,10 +389,26 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
       const weekStart = dayjs(dateStart).startOf('week').add(1 + index * 7, 'day');
       return JSON.stringify({ label: `Sem ${weekStart.format('DD/MM')}`, weekStart: weekStart.format('YYYY-MM-DD'), monthLabel: weekStart.format('MMMM YYYY') });
     }))).map((item) => JSON.parse(item))
-    : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
+    : bucket === 'day'
+      ? Array.from({ length: Math.max(1, dayjs(dateEnd).diff(dayjs(dateStart), 'day') + 1) }, (_value, index) => {
+        const day = dayjs(dateStart).add(index, 'day');
+        return { label: day.format('DD/MM/YYYY'), weekStart: day.format('YYYY-MM-DD'), monthLabel: day.format('MMMM YYYY') };
+      })
+      : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
   const hoursOfDay = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
   const inventoryRows = dedupeInventoryByCode(inventory);
   const inventoryCodes = new Set(inventoryRows.map((item) => item.codigo));
+  // `reporteinventario` only contains products with a warehouse assignment; the rest
+  // get their total from /api/item/inventario. SIAPE reports that remaining stock in
+  // the branch's main warehouse, so it is used as a safe fallback instead of zeros.
+  const warehouseTotals = new Map();
+  for (const item of inventory) {
+    for (const warehouse of item.bodegas ?? []) {
+      const name = textValue(warehouse?.bodegaALMACEN, '').toUpperCase();
+      if (name) warehouseTotals.set(name, (warehouseTotals.get(name) ?? 0) + Math.max(0, numberValue(warehouse?.stock)));
+    }
+  }
+  const primaryWarehouse = Array.from(warehouseTotals.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
   const warehouseAvailabilityByProduct = new Map();
   for (const item of inventory) {
     if (Array.isArray(item.bodegas)) {
@@ -345,8 +461,14 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
     const soldQuantity = marginSales.reduce((sum, sale) => sum + sale.quantity, 0);
     const salesProfitWithProviderCost = salePrices.reduce((sum, sale) => sum + ((sale.priceWithIva - providerCostWithIva) * sale.quantity), 0);
     const salesAverageMarginPercent = soldQuantity > 0 ? marginSales.reduce((sum, sale) => sum + (((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity), 0) / soldQuantity : undefined;
-    const warehouseStocks = mapWarehouseStocks(item.bodegas);
+    const mappedWarehouseStocks = mapWarehouseStocks(item.bodegas);
     const stockTotal = stockByProduct.get(item.codigo) ?? 0;
+    // Metrics keep using the warehouses reported by SIAPE (unchanged behaviour); only
+    // the export map gets the primary-warehouse fallback so no stock is lost.
+    const stock = Object.values(mappedWarehouseStocks).reduce((sum, value) => sum + value, 0);
+    const warehouseStocks = Object.keys(mappedWarehouseStocks).length || stockTotal <= 0 || !primaryWarehouse
+      ? mappedWarehouseStocks
+      : { [primaryWarehouse]: stockTotal };
     const sourceSales = sourceSalesByProduct.get(item.codigo) ?? [];
     const latestSale = sourceSales.at(-1);
     const costAvailable = hasNumber(provider?.costo_producto_proveedor ?? latestSale?.precio_costo);
@@ -399,7 +521,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
       pricePuntoPas: effectivePuntoPasPrice,
       pricePvp: effectivePvpPrice,
-      stock: Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0),
+      stock: Object.values(mappedWarehouseStocks).reduce((sum, value) => sum + value, 0),
       stockTotal,
       warehouseStocks,
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',
@@ -482,6 +604,108 @@ export const compactDashboard = (payload) => {
   };
 };
 
+export const compactProductOverview = (payload) => {
+  const createDictionary = () => {
+    const values = [];
+    const index = new Map();
+    return {
+      values,
+      add(value) {
+        const existing = index.get(value);
+        if (existing !== undefined) return existing;
+        const position = values.length;
+        values.push(value);
+        index.set(value, position);
+        return position;
+      },
+    };
+  };
+  const createArrayDictionary = () => {
+    const values = [];
+    const index = new Map();
+    return {
+      values,
+      add(value) {
+        const key = JSON.stringify(value);
+        const existing = index.get(key);
+        if (existing !== undefined) return existing;
+        const position = values.length;
+        values.push(value);
+        index.set(key, position);
+        return position;
+      },
+    };
+  };
+  const line = createDictionary();
+  const category = createDictionary();
+  const brand = createDictionary();
+  const type = createDictionary();
+  const provider = createDictionary();
+  const warehouse = createDictionary();
+  const lastPurchase = createDictionary();
+  const missing = createArrayDictionary();
+  const axis = payload.weeklyUnitsSeries;
+  const axisByKey = new Map(axis.map((point, index) => [point.weekStart ?? point.week, index]));
+
+  const rows = payload.rows.map((row) => {
+    const warehousePairs = [];
+    for (const [name, value] of Object.entries(row.warehouseStocks)) {
+      warehousePairs.push(warehouse.add(name), Number(value) || 0);
+    }
+    const sparseSales = [];
+    for (const point of row.monthlySales) {
+      const index = axisByKey.get(point.weekStart ?? point.month);
+      if (index === undefined) continue;
+      const quantity = Number(point.quantity) || 0;
+      const revenue = Number(point.revenue) || 0;
+      const profit = Number(point.profit) || 0;
+      if (quantity || revenue || profit) sparseSales.push(index, quantity, revenue, profit);
+    }
+    return [
+      row.code,
+      row.description,
+      line.add(row.line),
+      category.add(row.category),
+      brand.add(row.brand),
+      type.add(row.type),
+      row.stockTotal,
+      warehousePairs,
+      lastPurchase.add(row.lastPurchase),
+      row.lastPurchaseQuantity,
+      row.costWithIva,
+      provider.add(row.provider),
+      missing.add(row.missingFields ?? []),
+      row.pricePuntoPas,
+      row.publicCost,
+      row.currentPriceWithIva,
+      row.currentMarginPercent,
+      sparseSales,
+    ];
+  });
+
+  return {
+    compact: true,
+    branch: payload.branch,
+    periodMonths: payload.periodMonths,
+    dateStart: payload.dateStart,
+    dateEnd: payload.dateEnd,
+    periodLabel: payload.periodLabel,
+    generatedAt: payload.generatedAt,
+    weeklyUnitsSeries: axis,
+    dictionaries: {
+      line: line.values,
+      category: category.values,
+      brand: brand.values,
+      type: type.values,
+      provider: provider.values,
+      missing: missing.values,
+      warehouse: warehouse.values,
+      lastPurchase: lastPurchase.values,
+    },
+    rows,
+  };
+};
+
 export const buildDashboard = (products, params) => {
   const searchTerm = normalizeText(params.search);
   const available = Array.from(new Map(products.map((product) => [product.code, product])).values());
@@ -511,7 +735,10 @@ export const buildDashboard = (products, params) => {
   const noMovementRows = rows.filter((row) => row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0);
   const averageMargin = averageValidMargins(soldRows);
   const donutSeries = monthLabels.map((month) => ({ name: month, value: rows.reduce((sum, row) => sum + (row.monthlySales.find((sale) => sale.month === month)?.quantity ?? 0), 0) })).filter((item) => item.value > 0);
-  const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
+  const availableWarehouses = Array.from(new Set([
+    ...rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})),
+    ...(params.warehouseNames ?? [])
+  ])).sort((a, b) => a.localeCompare(b, 'es'));
 
   return {
     branch: params.branch,
@@ -612,7 +839,10 @@ export const buildProductOverview = (products, params) => {
   });
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
   const noMovementRows = rows.filter((row) => row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0);
-  const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})))).sort((a, b) => a.localeCompare(b, 'es'));
+  const availableWarehouses = Array.from(new Set([
+    ...rows.flatMap((row) => Object.keys(row.warehouseStocks ?? {})),
+    ...(params.warehouseNames ?? [])
+  ])).sort((a, b) => a.localeCompare(b, 'es'));
 
   return {
     branch: params.branch,

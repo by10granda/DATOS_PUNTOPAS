@@ -144,6 +144,112 @@ const fetchJson = async <T>(baseUrl: string, path: string, token: string): Promi
   return response.json() as Promise<T>;
 };
 
+/**
+ * Inventory, catalog and stock are independent from the sales date range and only
+ * change a few times per day. Caching them per branch removes the three heaviest
+ * SIAPE downloads from almost every request (dashboard, BI page, Excel export).
+ */
+export type SiapeSnapshot = {
+  inventory: SiapeInventoryItem[];
+  catalog: SiapeCatalogItem[];
+  stockInventory: Array<{ codigo: string; disponible: number | string }>;
+};
+
+export type SiapeLoadOptions = {
+  strictSalesPagination?: boolean;
+  onRawSales?: (sales: SiapeSaleItem[]) => void;
+  loadSnapshot?: () => Promise<SiapeSnapshot>;
+};
+
+const fetchSnapshot = async (baseUrl: string, token: string): Promise<SiapeSnapshot> => {
+  const [inventory, catalog, stockInventory] = await Promise.all([
+    fetchJson<SiapeInventoryItem[]>(baseUrl, '/api/item/reporteinventario', token),
+    fetchJson<SiapeCatalogItem[]>(baseUrl, '/api/item/search3', token),
+    fetchJson<Array<{ codigo: string; disponible: number | string }>>(baseUrl, '/api/item/inventario', token)
+  ]);
+  if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
+  return { inventory, catalog, stockInventory };
+};
+
+const SNAPSHOT_TTL_MS = Number(process.env.SIAPE_SNAPSHOT_TTL_MS ?? 5 * 60 * 1000);
+
+/**
+ * Builds a memoized snapshot loader for one branch. Concurrent callers share the
+ * same SIAPE request, so dashboard + BI + export never download the catalog twice.
+ */
+export const createSnapshotLoader = (branchName: string, ttlMs = SNAPSHOT_TTL_MS) => {
+  let cached: { value: SiapeSnapshot; loadedAt: number } | null = null;
+  let inFlight: Promise<SiapeSnapshot> | null = null;
+
+  return async (): Promise<SiapeSnapshot> => {
+    if (ttlMs > 0 && cached && Date.now() - cached.loadedAt < ttlMs) return cached.value;
+    if (inFlight) return inFlight;
+    inFlight = (async () => {
+      const { baseUrl, user, password } = resolveBranchConfig(branchName);
+      const token = await getToken(baseUrl, { user, password, branch: branchName });
+      const value = await fetchSnapshot(baseUrl, token);
+      if (ttlMs > 0) cached = { value, loadedAt: Date.now() };
+      return value;
+    })().finally(() => { inFlight = null; });
+    return inFlight;
+  };
+};
+
+const warehouseNamesCache = new Map<string, { names: string[]; loadedAt: number }>();
+
+/**
+ * Full warehouse column list for a branch. `reporteinventario` only lists the
+ * warehouses that currently hold stock, so a handful of `/api/item` probes are
+ * used once per TTL to discover the empty ones (e.g. GALPON-MADERERA).
+ */
+export const loadWarehouseNames = async (
+  branchName: string,
+  options: { loadSnapshot?: () => Promise<SiapeSnapshot>; ttlMs?: number; probeLimit?: number } = {},
+): Promise<string[]> => {
+  const ttlMs = options.ttlMs ?? SNAPSHOT_TTL_MS;
+  const config = resolveBranchConfig(branchName);
+  const cacheKey = `${config.baseUrl}\u0000${branchName}`;
+  const cached = warehouseNamesCache.get(cacheKey);
+  if (ttlMs > 0 && cached && Date.now() - cached.loadedAt < ttlMs) return cached.names;
+
+  const loadSnapshot = options.loadSnapshot ?? createSnapshotLoader(branchName);
+  const snapshot = await loadSnapshot();
+  const names = new Set<string>();
+  for (const item of snapshot.inventory) {
+    for (const warehouse of item.bodegas ?? []) {
+      const name = textValue(warehouse?.bodegaALMACEN, '').toUpperCase();
+      if (name) names.add(name);
+    }
+  }
+
+  const probeCodes = Array.from(new Set(
+    snapshot.inventory
+      .filter((item) => Array.isArray(item.bodegas) && item.bodegas.length > 0)
+      .map((item) => item.codigo)
+  )).slice(0, Math.max(0, options.probeLimit ?? 8));
+
+  if (probeCodes.length) {
+    const { baseUrl, user, password } = resolveBranchConfig(branchName);
+    const token = await getToken(baseUrl, { user, password, branch: branchName });    await Promise.all(probeCodes.map(async (code) => {
+      try {
+        const detail = await fetchJson<{ stockBodega?: Array<{ txDescripcionBodega?: string }> }>(
+          baseUrl, `/api/item?code=${encodeURIComponent(code)}`, token,
+        );
+        for (const warehouse of detail?.stockBodega ?? []) {
+          const name = textValue(warehouse?.txDescripcionBodega, '').toUpperCase();
+          if (name) names.add(name);
+        }
+      } catch {
+        // A failed probe only hides an empty warehouse column; stock values come from the snapshot.
+      }
+    }));
+  }
+
+  const sorted = Array.from(names).sort((a, b) => a.localeCompare(b, 'es'));
+  if (ttlMs > 0) warehouseNamesCache.set(cacheKey, { names: sorted, loadedAt: Date.now() });
+  return sorted;
+};
+
 const getSaleUnitFactor = (item?: SiapeCatalogItem) => {
   const factors = item?.unidadesVenta
     ?.map((unit) => numberValue(unit.factor))
@@ -263,16 +369,22 @@ const fetchSales = async (baseUrl: string, token: string, dateStart: string, dat
   });
 };
 
-export const loadSiapeProducts = async (dateStart: string, dateEnd: string, bucket: 'hour' | 'week' = 'hour', branchName = 'ALMACEN PAS'): Promise<ProductRecord[]> => {
+export const loadSiapeProducts = async (
+  dateStart: string,
+  dateEnd: string,
+  bucket: 'hour' | 'week' | 'day' = 'hour',
+  branchName = 'ALMACEN PAS',
+  options: SiapeLoadOptions = {},
+): Promise<ProductRecord[]> => {
   const { name: branch, baseUrl, user, password } = resolveBranchConfig(branchName);
 
   const token = await getToken(baseUrl, { user, password, branch });
-  const [inventory, sales, catalog, stockInventory] = await Promise.all([
-    fetchJson<SiapeInventoryItem[]>(baseUrl, '/api/item/reporteinventario', token),
+  const loadSnapshot = options.loadSnapshot ?? (() => fetchSnapshot(baseUrl, token));
+  const [snapshot, sales] = await Promise.all([
+    loadSnapshot(),
     fetchSales(baseUrl, token, dateStart, dateEnd),
-    fetchJson<SiapeCatalogItem[]>(baseUrl, '/api/item/search3', token),
-    fetchJson<Array<{ codigo: string; disponible: number | string }>>(baseUrl, '/api/item/inventario', token)
   ]);
+  const { inventory, catalog, stockInventory } = snapshot;
 
   if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
   const stockByProduct = new Map<string, number>();
@@ -305,7 +417,9 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
     const saleDay = dayjs(sale.fecha_venta);
     const month = bucket === 'week' && saleDay.isValid()
       ? `Sem ${saleDay.startOf('week').add(1, 'day').format('DD/MM')}`
-      : saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
+      : bucket === 'day' && saleDay.isValid()
+        ? saleDay.format('DD/MM/YYYY')
+        : saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
     const hour = saleDay.isValid() ? saleDay.format('HH:00') : '00:00';
     const productSales = salesByProduct.get(code) ?? new Map<string, number>();
     const productHourlySales = hourlySalesByProduct.get(code) ?? new Map<string, number>();
@@ -337,10 +451,26 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
       const weekStart = dayjs(dateStart).startOf('week').add(1 + index * 7, 'day');
       return JSON.stringify({ label: `Sem ${weekStart.format('DD/MM')}`, weekStart: weekStart.format('YYYY-MM-DD'), monthLabel: weekStart.format('MMMM YYYY') });
     }))).map((item) => JSON.parse(item) as { label: string; weekStart: string; monthLabel: string })
-    : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
+    : bucket === 'day'
+      ? Array.from({ length: Math.max(1, dayjs(dateEnd).diff(dayjs(dateStart), 'day') + 1) }, (_value, index) => {
+        const day = dayjs(dateStart).add(index, 'day');
+        return { label: day.format('DD/MM/YYYY'), weekStart: day.format('YYYY-MM-DD'), monthLabel: day.format('MMMM YYYY') };
+      })
+      : Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00` }));
   const hours = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
   const inventoryRows = dedupeInventoryByCode(inventory);
   const inventoryCodes = new Set(inventoryRows.map((item) => item.codigo));
+  // `reporteinventario` only contains products with a warehouse assignment; the rest
+  // get their total from /api/item/inventario. SIAPE reports that remaining stock in
+  // the branch's main warehouse, so it is used as a safe fallback instead of zeros.
+  const warehouseTotals = new Map<string, number>();
+  for (const item of inventory) {
+    for (const warehouse of item.bodegas ?? []) {
+      const name = textValue(warehouse?.bodegaALMACEN, '').toUpperCase();
+      if (name) warehouseTotals.set(name, (warehouseTotals.get(name) ?? 0) + Math.max(0, numberValue(warehouse?.stock)));
+    }
+  }
+  const primaryWarehouse = Array.from(warehouseTotals.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
   const warehouseAvailabilityByProduct = new Map<string, boolean>();
   for (const item of inventory) {
     if (Array.isArray(item.bodegas)) {
@@ -395,8 +525,14 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
     const salesAverageMarginPercent = soldQuantity > 0
       ? marginSales.reduce((sum, sale) => sum + (((sale.priceWithIva - providerCostWithIva) / sale.priceWithIva) * 100 * sale.quantity), 0) / soldQuantity
       : undefined;
-    const warehouseStocks = mapWarehouseStocks(item.bodegas);
+    const mappedWarehouseStocks = mapWarehouseStocks(item.bodegas);
     const stockTotal = stockByProduct.get(item.codigo) ?? 0;
+    // Metrics keep using the warehouses reported by SIAPE (unchanged behaviour); only
+    // the export map gets the primary-warehouse fallback so no stock is lost.
+    const stock = Object.values(mappedWarehouseStocks).reduce((sum, value) => sum + value, 0);
+    const warehouseStocks = Object.keys(mappedWarehouseStocks).length || stockTotal <= 0 || !primaryWarehouse
+      ? mappedWarehouseStocks
+      : { [primaryWarehouse]: stockTotal };
     const sourceSales = sourceSalesByProduct.get(item.codigo) ?? [];
     const latestSale = sourceSales.at(-1);
     const costAvailable = hasNumber(provider?.costo_producto_proveedor ?? latestSale?.precio_costo);
@@ -449,7 +585,7 @@ export const loadSiapeProducts = async (dateStart: string, dateEnd: string, buck
       salePrice: productSales.size > 0 ? numberValue(priceByProduct.get(item.codigo)) : 0,
       pricePuntoPas: effectivePuntoPasPrice,
       pricePvp: effectivePvpPrice,
-      stock: Object.values(warehouseStocks).reduce((sum, stock) => sum + stock, 0),
+      stock: Object.values(mappedWarehouseStocks).reduce((sum, value) => sum + value, 0),
       stockTotal,
       warehouseStocks,
       lastPurchase: provider?.fecha_ultima_compra ? dayjs(provider.fecha_ultima_compra).format('YYYY-MM-DD') : '',

@@ -1,7 +1,8 @@
 import { Fragment, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart, Pie, Line, LineChart, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { askAssistant, fetchBranches, fetchDashboard, fetchExportWarehouseStocks, fetchWarehouseStocks } from './api';
+import { askAssistant, fetchBranches, fetchDashboard } from './api';
+import DataDashboard from './DataDashboard';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
 import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, productValue, twoDecimals, warehouseStockLabel } from './utils';
 
@@ -93,6 +94,7 @@ function App() {
   const [sortKey, setSortKey] = useState<keyof ProductRow>('salesXMonths');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [activePage, setActivePage] = useState<'general' | 'data'>('general');
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -103,6 +105,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (activePage === 'data') return;
     let active = true;
 
     const loadDashboard = () => {
@@ -140,7 +143,7 @@ function App() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [selectedBranch, periodMonths, search, selectedCategory, selectedBrand, selectedLine, selectedType, selectedProductCode, queryMode, appliedManualRange, dailyDetailOpen]);
+  }, [selectedBranch, periodMonths, search, selectedCategory, selectedBrand, selectedLine, selectedType, selectedProductCode, queryMode, appliedManualRange, dailyDetailOpen, activePage]);
 
   useEffect(() => {
     setPage(1);
@@ -272,11 +275,32 @@ function App() {
             </div>
           </div>
         </div>
+        <nav className="relative border-t border-white/20 bg-black/10 px-4">
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-2 py-2.5">
+            <button
+              onClick={() => setActivePage('general')}
+              className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${activePage === 'general' ? 'bg-white text-[#8f0000] shadow-lg' : 'border border-white/35 text-white hover:bg-white/15'}`}
+            >
+              Dashboard General
+            </button>
+            <button
+              onClick={() => { setDailyDetailOpen(false); setRecommendationsOpen(false); setActivePage('data'); }}
+              className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${activePage === 'data' ? 'bg-white text-[#0b1f3a] shadow-lg' : 'border border-white/35 text-white hover:bg-white/15'}`}
+            >
+              Dashboard de Datos
+            </button>
+            <span className="ml-auto text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">
+              Rotación · Producto · Línea · Categoría · Marca
+            </span>
+          </div>
+        </nav>
       </div>
 
       <main className="mx-auto max-w-[1760px] space-y-4 px-4 py-5">
-        {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
-        {dailyDetailOpen && data ? (
+        {error && activePage === 'general' && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
+        {activePage === 'data' ? (
+          <DataDashboard branches={branches} initialBranch={selectedBranch} onClose={() => setActivePage('general')} />
+        ) : dailyDetailOpen && data ? (
           <DailyDetailPage data={data} scopeTitle={`Vista general de ${selectedBranch ?? 'ALMACEN PAS'}`} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
         ) : recommendationsOpen && data ? (
           <RecommendationsPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setRecommendationsOpen(false)} onRowClick={(row) => setDrawer({ row, periodMonths })} />
@@ -499,7 +523,7 @@ function App() {
           </>
         )}
 
-        {loading && <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">Cargando análisis...</div>}
+        {loading && activePage === 'general' && <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">Cargando análisis...</div>}
       </main>
 
       {drawer && <ProductDrawer row={{ ...drawer.row, stockTotal: data?.rows.find((row) => row.id === drawer.row.id)?.stockTotal ?? drawer.row.stockTotal }} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
@@ -1295,10 +1319,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const [detailSearch, setDetailSearch] = useState('');
   const [detailSearchFocused, setDetailSearchFocused] = useState(false);
   const [selectedRow, setSelectedRow] = useState<ProductRow | null>(null);
-  const [detailWarehouseStocks, setDetailWarehouseStocks] = useState<Record<string, Record<string, number>>>({});
-  const [detailWarehouseNames, setDetailWarehouseNames] = useState<string[]>([]);
   const [exportingExcel, setExportingExcel] = useState(false);
-  const loadedDetailCodes = useRef(new Set<string>());
   const rows = useMemo(() => [...data.rows].sort((a, b) => b.salesXMonths - a.salesXMonths || a.description.localeCompare(b.description, 'es')), [data.rows]);
   const searchTerm = useDeferredValue(detailSearch.trim());
   const scoredRows = useMemo(() => searchTerm ? rows.map((row) => {
@@ -1326,7 +1347,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
     soldUnits: visibleRows.reduce((sum, row) => sum + row.salesXMonths, 0),
   }), [visibleRows]);
   const soldProductsCount = useMemo(() => rows.filter((row) => row.salesXMonths > 0).length, [rows]);
-  const warehouseColumns = useMemo(() => Array.from(new Set([...data.availableWarehouses, ...detailWarehouseNames])).sort((a, b) => a.localeCompare(b, 'es')), [data.availableWarehouses, detailWarehouseNames]);
+  const warehouseColumns = useMemo(() => Array.from(new Set(data.availableWarehouses)).sort((a, b) => a.localeCompare(b, 'es')), [data.availableWarehouses]);
   const monthlyQuantityColumns = useMemo(() => monthQuantityColumns(visibleRows), [visibleRows]);
   const columnLabels = ['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Margen Ganancia %', 'Margen Actual %'];
   const columnKey = JSON.stringify(columnLabels);
@@ -1347,66 +1368,20 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
     scrollMargin,
   });
   const virtualRows = virtualizer.getVirtualItems();
-  const mountedCodesKey = useMemo(() => Array.from(new Set(virtualRows.map((item) => visibleRows[item.index]?.code).filter((code): code is string => !!code))).join('\u0000'), [virtualRows, visibleRows]);
 
-  useEffect(() => {
-    loadedDetailCodes.current.clear();
-    setDetailWarehouseStocks({});
-    setDetailWarehouseNames([]);
-  }, [data]);
-
-  useEffect(() => {
-    if (!data.branch) return;
-    const codes = mountedCodesKey.split('\u0000').filter(Boolean)
-      .filter((code) => !loadedDetailCodes.current.has(code));
-    if (!codes.length) return;
-    codes.forEach((code) => loadedDetailCodes.current.add(code));
-    const controller = new AbortController();
-    void (async () => {
-      try {
-        for (let index = 0; index < codes.length; index += 40) {
-          const result = await fetchWarehouseStocks(data.branch!, codes.slice(index, index + 40), controller.signal);
-          if (controller.signal.aborted) return;
-          const missingCodes = new Set(result.missingCodes);
-          setDetailWarehouseStocks((current) => ({ ...current, ...Object.fromEntries(result.items.filter((item) => !missingCodes.has(item.code)).map((item) => [item.code, item.warehouseStocks])) }));
-          setDetailWarehouseNames((current) => Array.from(new Set([...current, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es')));
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) codes.forEach((code) => loadedDetailCodes.current.delete(code));
-      }
-    })();
-    return () => controller.abort();
-  }, [data.branch, mountedCodesKey]);
-
+  /**
+   * The dashboard payload already carries per-warehouse stock for every product
+   * (built from SIAPE's inventory snapshot), so exporting is a pure client-side
+   * operation: no extra SIAPE calls, no partial failures.
+   */
   const exportDailyExcel = async () => {
     setExportingExcel(true);
-    let warehouseStocks = detailWarehouseStocks;
-    let exportWarehouseColumns = warehouseColumns;
     try {
-      if (data.branch && visibleRows.length) {
-        // A positive warehouse balance is part of SIAPE's total available stock.
-        // This matches the successful Maderera report query and avoids thousands of zero-stock details.
-        const codesWithStock = visibleRows.filter((row) => Number(row.stockTotal) > 0).map((row) => row.code);
-        if (codesWithStock.length) {
-          const result = await fetchExportWarehouseStocks(data.branch, codesWithStock);
-          const loadedStocks = Object.fromEntries(result.items.map((item) => [item.code, item.warehouseStocks]));
-          if (result.items.length) {
-            warehouseStocks = { ...warehouseStocks, ...loadedStocks };
-            exportWarehouseColumns = Array.from(new Set([...exportWarehouseColumns, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es'));
-            setDetailWarehouseStocks((current) => ({ ...current, ...loadedStocks }));
-            setDetailWarehouseNames((current) => Array.from(new Set([...current, ...result.warehouseNames])).sort((a, b) => a.localeCompare(b, 'es')));
-          }
-        }
-      }
-    } catch {
-      window.alert('No se pudieron cargar todas las bodegas. Intenta exportar nuevamente.');
-      setExportingExcel(false);
-      return;
-    }
-    try {
-      const emptyWarehouseStocks = Object.fromEntries(exportWarehouseColumns.map((warehouse) => [warehouse, 0]));
-      await exportExcel(visibleRows.map((row) => ({ ...row, warehouseStocks: { ...emptyWarehouseStocks, ...row.warehouseStocks, ...warehouseStocks[row.code] } })),
-        'detalle-ejecutivo-diario', { periodLabel, warehouseColumns: exportWarehouseColumns });
+      const emptyWarehouseStocks = Object.fromEntries(warehouseColumns.map((warehouse) => [warehouse, 0]));
+      await exportExcel(visibleRows.map((row) => ({
+        ...row,
+        warehouseStocks: { ...emptyWarehouseStocks, ...(row.warehouseStocks ?? {}) },
+      })), 'detalle-ejecutivo-diario', { periodLabel, warehouseColumns });
     } finally {
       setExportingExcel(false);
     }
@@ -1556,7 +1531,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                    <td className="px-2.5 py-2">{productValue(row, 'lastPurchase')}</td>
                    <td className="px-2.5 py-2">{productValue(row, 'lastPurchaseQuantity')}</td>
                    <td className={`px-2.5 py-2 font-black ${Number(row.stockTotal ?? row.stock) <= 0 ? 'rounded-lg bg-red-600 text-white' : 'text-[#18b8b1]'}`}>{productValue(row, 'stockTotal')}</td>
-                    {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{detailWarehouseStocks[row.code] ? (detailWarehouseStocks[row.code][warehouse] ?? 0) : (row.warehouseStocks?.[warehouse] ?? 'NO HAY')}</td>)}
+                    {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                    <td className="rounded-r-xl px-2.5 py-2 font-black">{productValue(row, 'marginPercent', percent(row.marginPercent))}</td>
                    <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{productValue(row, 'currentMarginPercent', percentTwo(row.currentMarginPercent))}</td>
                 </tr>
@@ -1571,7 +1546,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
             </tbody>
           </table>
         </div>
-        {selectedRow && <ProductVariablesModal row={{ ...(data.rows.find((row) => row.id === selectedRow.id) ?? selectedRow), warehouseStocks: detailWarehouseStocks[selectedRow.code] ?? selectedRow.warehouseStocks }} onClose={() => setSelectedRow(null)} />}
+        {selectedRow && <ProductVariablesModal row={data.rows.find((row) => row.id === selectedRow.id) ?? selectedRow} onClose={() => setSelectedRow(null)} />}
     </section>
   );
 }

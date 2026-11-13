@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { branches, buildDashboard, compactDashboard, loadSiapeProducts, resolveBranchConfig } from './_core.js';
+import { branches, buildDashboard, compactDashboard, loadBranchData, resolveBranchConfig } from './_core.js';
 
 export const maxDuration = 60;
 
@@ -36,8 +36,8 @@ export default async function handler(req, res) {
     const transport = (payload) => queryValue(query.compact) === '1' ? compactDashboard(payload) : payload;
     if (!branch) return res.status(200).json(transport(buildDashboard([], params)));
     resolveBranchConfig(branch);
-    const products = await loadSiapeProducts(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
-    return res.status(200).json(transport(buildDashboard(products, params)));
+    const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
+    return res.status(200).json(transport(buildDashboard(products, { ...params, warehouseNames })));
   } catch (error) {
     return res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar datos desde SIAPE', branches });
   }

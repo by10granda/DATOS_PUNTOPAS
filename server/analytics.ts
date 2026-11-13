@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import type { DashboardResponse, PeriodMonths, ProductOverviewResponse, ProductOverviewRow, ProductRecord, ProductRow } from './types';
-import type { CompactDashboardResponse } from '../src/types';
+import type { CompactDashboardResponse, CompactDataDashboardResponse, DataDashboardTuple } from '../src/types';
 
 export const compactDashboard = (payload: DashboardResponse): DashboardResponse | CompactDashboardResponse => {
   const seriesKeys = ['monthlySales', 'hourlySales'] as const;
@@ -46,6 +46,117 @@ export const compactDashboard = (payload: DashboardResponse): DashboardResponse 
 };
 
 export const normalizeText = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+
+type DictionaryBuilder = { values: string[]; add: (value: string) => number };
+const createDictionary = (): DictionaryBuilder => {
+  const values: string[] = [];
+  const index = new Map<string, number>();
+  return {
+    values,
+    add(value: string) {
+      const existing = index.get(value);
+      if (existing !== undefined) return existing;
+      const position = values.length;
+      values.push(value);
+      index.set(value, position);
+      return position;
+    },
+  };
+};
+
+const createArrayDictionary = () => {
+  const values: string[][] = [];
+  const index = new Map<string, number>();
+  return {
+    values,
+    add(value: string[]) {
+      const key = JSON.stringify(value);
+      const existing = index.get(key);
+      if (existing !== undefined) return existing;
+      const position = values.length;
+      values.push(value);
+      index.set(key, position);
+      return position;
+    },
+  };
+};
+
+/**
+ * Slim transport for /api/data-dashboard. The BI page does not need the full
+ * ProductOverviewRow payload, so unused fields and repeated keys are removed,
+ * categorical strings are dictionary-encoded and the per-bucket series become
+ * sparse flat arrays referenced against the shared weeklyUnitsSeries axis.
+ */
+export const compactProductOverview = (payload: ProductOverviewResponse): CompactDataDashboardResponse => {
+  const line = createDictionary();
+  const category = createDictionary();
+  const brand = createDictionary();
+  const type = createDictionary();
+  const provider = createDictionary();
+  const warehouse = createDictionary();
+  const lastPurchase = createDictionary();
+  const missing = createArrayDictionary();
+  const axis = payload.weeklyUnitsSeries;
+  const axisByKey = new Map(axis.map((point, index) => [point.weekStart ?? point.week, index]));
+
+  const rows: DataDashboardTuple[] = payload.rows.map((row) => {
+    const warehousePairs: number[] = [];
+    for (const [name, value] of Object.entries(row.warehouseStocks)) {
+      warehousePairs.push(warehouse.add(name), Number(value) || 0);
+    }
+    const sparseSales: number[] = [];
+    for (const point of row.monthlySales) {
+      const index = axisByKey.get(point.weekStart ?? point.month);
+      if (index === undefined) continue;
+      const quantity = Number(point.quantity) || 0;
+      const revenue = Number(point.revenue) || 0;
+      const profit = Number(point.profit) || 0;
+      if (quantity || revenue || profit) sparseSales.push(index, quantity, revenue, profit);
+    }
+    return [
+      row.code,
+      row.description,
+      line.add(row.line),
+      category.add(row.category),
+      brand.add(row.brand),
+      type.add(row.type),
+      row.stockTotal,
+      warehousePairs,
+      lastPurchase.add(row.lastPurchase),
+      row.lastPurchaseQuantity,
+      row.costWithIva,
+      provider.add(row.provider),
+      missing.add(row.missingFields ?? []),
+      row.pricePuntoPas,
+      row.publicCost,
+      row.currentPriceWithIva,
+      row.currentMarginPercent,
+      sparseSales,
+    ];
+  });
+
+  return {
+    compact: true,
+    branch: payload.branch,
+    periodMonths: payload.periodMonths,
+    dateStart: payload.dateStart,
+    dateEnd: payload.dateEnd,
+    periodLabel: payload.periodLabel,
+    generatedAt: payload.generatedAt,
+    weeklyUnitsSeries: axis,
+    dictionaries: {
+      line: line.values,
+      category: category.values,
+      brand: brand.values,
+      type: type.values,
+      provider: provider.values,
+      missing: missing.values,
+      warehouse: warehouse.values,
+      lastPurchase: lastPurchase.values,
+    },
+    rows,
+  };
+};
 
 const dedupeProductsByCode = (products: ProductRecord[]) => Array.from(new Map(products.map((product) => [product.code, product])).values());
 const averageValidMargins = (rows: ProductRow[]) => {
@@ -134,6 +245,7 @@ export const buildDashboard = (
     productCode: string;
     dateStart: string | null;
     dateEnd: string | null;
+    warehouseNames?: string[];
   }
 ): DashboardResponse => {
   const searchTerm = normalizeText(params.search);
@@ -188,7 +300,10 @@ export const buildDashboard = (
   const brands = Array.from(new Set(facetProducts.map((row) => row.brand))).sort((a, b) => a.localeCompare(b, 'es'));
   const lines = Array.from(new Set(facetProducts.map((row) => row.line))).sort((a, b) => a.localeCompare(b, 'es'));
   const types = Array.from(new Set(facetProducts.map((row) => row.type))).sort((a, b) => a.localeCompare(b, 'es'));
-  const warehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks)))).sort((a, b) => a.localeCompare(b, 'es'));
+  const warehouses = Array.from(new Set([
+    ...rows.flatMap((row) => Object.keys(row.warehouseStocks)),
+    ...(params.warehouseNames ?? []),
+  ])).sort((a, b) => a.localeCompare(b, 'es'));
   const availableProducts = facetProducts
     .map((row) => ({ code: row.code, description: row.description }))
     .sort((a, b) => a.description.localeCompare(b.description, 'es'));
@@ -256,7 +371,7 @@ const slope = (values: number[]) => {
 
 export const buildProductOverview = (
   products: ProductRecord[],
-  params: { branch: string; periodMonths: PeriodMonths; dateStart: string; dateEnd: string; cacheKey: string; generatedAt: string }
+  params: { branch: string; periodMonths: PeriodMonths; dateStart: string; dateEnd: string; cacheKey: string; generatedAt: string; warehouseNames?: string[] }
 ): ProductOverviewResponse => {
   const periodDays = Math.max(1, dayjs(params.dateEnd).diff(dayjs(params.dateStart), 'day') + 1);
   const baseRows = products.map((product) => buildRow(product, params.periodMonths));
@@ -342,7 +457,10 @@ export const buildProductOverview = (
     return { week, weekStart: sale?.weekStart, monthLabel: sale?.monthLabel, revenue: rows.reduce((sum, row) => sum + (row.monthlySales.find((item) => item.month === week)?.revenue ?? 0), 0) };
   });
   const soldRows = rows.filter((row) => row.salesXMonths > 0);
-  const availableWarehouses = Array.from(new Set(rows.flatMap((row) => Object.keys(row.warehouseStocks)))).sort((a, b) => a.localeCompare(b, 'es'));
+  const availableWarehouses = Array.from(new Set([
+    ...rows.flatMap((row) => Object.keys(row.warehouseStocks)),
+    ...(params.warehouseNames ?? []),
+  ])).sort((a, b) => a.localeCompare(b, 'es'));
 
   return {
     branch: params.branch,
