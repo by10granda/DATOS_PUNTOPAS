@@ -4,7 +4,7 @@ import { Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, PieChart,
 import { askAssistant, fetchBranches, fetchDashboard } from './api';
 import DataDashboard from './DataDashboard';
 import type { Branch, DashboardResponse, ProductOverviewResponse, ProductOverviewRow, ProductRow, PeriodMonths } from './types';
-import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, productValue, twoDecimals, warehouseStockLabel } from './utils';
+import { exportExcel, exportOverviewExcel, exportOverviewPdf, exportPdf, exportRecommendationsExcel, exportRecommendationsPdf, money, monthQuantity, monthQuantityColumns, percent, percentTwo, productValue, twoDecimals, warehouseStockLabel, warehouseStockTotal } from './utils';
 
 const periodOptions: PeriodMonths[] = [1, 2, 3, 6, 12];
 const showAssistantWidget = false;
@@ -199,8 +199,8 @@ function App() {
 
   const displayedRows = useMemo(() => [...(data?.rows ?? [])]
     .sort((a, b) => {
-      const aValue = a[sortKey];
-      const bValue = b[sortKey];
+      const aValue = sortKey === 'stockTotal' ? warehouseStockTotal(a) : a[sortKey];
+      const bValue = sortKey === 'stockTotal' ? warehouseStockTotal(b) : b[sortKey];
       if (typeof aValue === 'string' && typeof bValue === 'string') return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
       const aNum = Number(aValue);
       const bNum = Number(bValue);
@@ -901,7 +901,7 @@ function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
       <table className="min-w-[1800px] w-full border-separate border-spacing-y-1 text-xs">
         <thead>
           <tr>
-            {['Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Unidades vendidas', 'Precio vendido', 'Valor vendido', 'Valor comprado proveedor', 'Valor comprado proveedor + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
+            {['Código', 'Descripción', 'Proveedor', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns.map(warehouseStockLabel), 'Unidades vendidas', 'Precio vendido', 'Valor vendido', 'Valor comprado proveedor', 'Valor comprado proveedor + IVA', 'Utilidad', 'Margen', 'Rotación', 'Cobertura (días)', 'Días sin venta', 'Clasificación ABC', 'XYZ', 'Pareto', 'Tendencia', 'Score', 'Estado'].map((label) => (
               <th key={label} className="whitespace-nowrap border-b border-slate-700 px-2.5 py-2 text-left font-black uppercase tracking-wide text-slate-400">{label}</th>
             ))}
           </tr>
@@ -916,7 +916,7 @@ function ProductOverviewTable({ rows }: { rows: ProductOverviewRow[] }) {
               <td className="px-2.5 py-2">{row.line}</td>
               <td className="px-2.5 py-2">{row.category}</td>
               <td className="px-2.5 py-2">{row.type}</td>
-              <td className="px-2.5 py-2 font-black">{row.stockTotal}</td>
+              <td className="px-2.5 py-2 font-black">{warehouseStockTotal(row)}</td>
               {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
               <td className="px-2.5 py-2 font-black">{row.salesXMonths}</td>
               <td className="px-2.5 py-2 font-black">{row.soldPrice > 0 ? money(row.soldPrice) : 'NO CONSTA'}</td>
@@ -968,7 +968,7 @@ function ExecutiveSummary({ data, scopeTitle, periodLabel, onRowClick, onTrendCl
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <DarkMetric label="Stock Total Ventas" value={data.kpis.totalStock.toLocaleString('es-EC')} />
+            <DarkMetric label="Stock Total" value={data.rows.reduce((sum, row) => sum + warehouseStockTotal(row), 0).toLocaleString('es-EC')} />
             <DarkMetric label="Ganancia" value={money(data.kpis.totalProfit)} />
             <DarkMetric label="Productos" value={data.kpis.totalProducts.toLocaleString('es-EC')} />
             <DarkMetric label="Stock Crítico" value={stockCritical.toLocaleString('es-EC')} danger />
@@ -1171,7 +1171,7 @@ function DataSection({
   const columns: Array<{ key: keyof ProductRow; label: string }> = [
     { key: 'code', label: 'Código' },
     { key: 'description', label: 'Descripción' },
-    { key: 'stockTotal', label: 'Stock Total Ventas' },
+    { key: 'stockTotal', label: 'Stock Total' },
     { key: 'lastPurchaseQuantity', label: 'Cantidad Última Compra' },
     { key: 'salesXMonths', label: 'Cantidad Vendida' },
     { key: 'saleDate', label: 'fecha_venta' },
@@ -1221,7 +1221,7 @@ function DataSection({
               <tr key={row.id} onClick={() => onRowClick(row)} className="cursor-pointer rounded-xl bg-white/80 shadow-sm transition hover:-translate-y-0.5 hover:bg-corporateBlue/5 hover:shadow-md dark:bg-slate-800/70 dark:hover:bg-slate-800">
                 <td className="whitespace-nowrap rounded-l-xl px-2.5 py-2 font-bold text-corporateBlue dark:text-corporateGreen">{row.code}</td>
                 <td className="max-w-[240px] truncate px-2.5 py-2">{row.description}</td>
-                <td className="px-2.5 py-2 font-black">{row.stockTotal}</td>
+                <td className="px-2.5 py-2 font-black">{warehouseStockTotal(row)}</td>
                 <td className="px-2.5 py-2 font-black">{row.lastPurchaseQuantity}</td>
                 {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                 <td className="px-2.5 py-2">{row.salesXMonths}</td>
@@ -1288,21 +1288,21 @@ function RecommendationsPage({ data, scopeTitle, periodLabel, onClose, onRowClic
         <table className="min-w-[1500px] w-full border-separate border-spacing-y-1 text-xs">
           <thead className="sticky top-0 z-20 bg-white shadow-lg shadow-slate-900/10">
             <tr>
-              {['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total Ventas', 'Rotación', 'Estado', 'Recomendación'].map((label) => (
+              {['Código', 'Descripción', 'Marca', 'Categoría', 'Tipo', 'Cantidad Vendida', 'Stock Total', 'Rotación', 'Estado', 'Recomendación'].map((label) => (
                 <th key={label} className="whitespace-nowrap border-b border-red-200 bg-white px-3 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} onClick={() => onRowClick(row)} className={`cursor-pointer transition hover:bg-red-50 ${Number(row.stockTotal ?? row.stock) <= 0 ? 'zero-stock-row' : 'bg-white'}`}>
+              <tr key={row.id} onClick={() => onRowClick(row)} className={`cursor-pointer transition hover:bg-red-50 ${warehouseStockTotal(row) <= 0 ? 'zero-stock-row' : 'bg-white'}`}>
                 <td className="rounded-l-xl px-3 py-3 font-black text-[#ffbe1b]">{row.code}</td>
                 <td className="max-w-[420px] whitespace-normal px-3 py-3 font-black leading-snug">{row.description}</td>
                 <td className="px-3 py-3">{row.brand}</td>
                 <td className="px-3 py-3">{row.category}</td>
                 <td className="px-3 py-3">{row.type}</td>
                 <td className="px-3 py-3 font-black text-corporateRed">{twoDecimals(row.salesXMonths)}</td>
-                <td className="px-3 py-3 font-black">{row.stockTotal}</td>
+                <td className="px-3 py-3 font-black">{warehouseStockTotal(row)}</td>
                 <td className="px-3 py-3 font-black">{row.rotation.toFixed(2)}</td>
                 <td className="px-3 py-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${badgeColor(row.inventorySignal)}`}>{row.inventorySignal}</span></td>
                 <td className="rounded-r-xl px-3 py-3 font-bold text-slate-700">{row.recommendation}</td>
@@ -1349,7 +1349,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
   const soldProductsCount = useMemo(() => rows.filter((row) => row.salesXMonths > 0).length, [rows]);
   const warehouseColumns = useMemo(() => Array.from(new Set(data.availableWarehouses)).sort((a, b) => a.localeCompare(b, 'es')), [data.availableWarehouses]);
   const monthlyQuantityColumns = useMemo(() => monthQuantityColumns(visibleRows), [visibleRows]);
-  const columnLabels = ['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total Ventas', ...warehouseColumns.map(warehouseStockLabel), 'Margen Ganancia %', 'Margen Actual %'];
+  const columnLabels = ['Imagen', 'Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Cantidad Vendida', ...monthlyQuantityColumns, 'fecha_venta', 'Precio Punto PAS', 'Precio PVP', 'Proveedor', 'Costo Proveedor', 'Costo + IVA', 'precio_venta', 'Costo Público + IVA', 'Precio Actual', 'Fecha Última Compra', 'Cantidad Última Compra', 'Stock Total', ...warehouseColumns.map(warehouseStockLabel), 'Margen Ganancia %', 'Margen Actual %'];
   const columnKey = JSON.stringify(columnLabels);
   const scrollRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<HTMLTableSectionElement>(null);
@@ -1507,7 +1507,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
               {virtualRows.map((virtualRow) => {
                 const row = visibleRows[virtualRow.index];
                 return (
-                <tr key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index} aria-rowindex={virtualRow.index + 2} onClick={() => setSelectedRow(row)} className={`daily-detail-row cursor-pointer transition hover:bg-white/10 ${Number(row.stockTotal ?? row.stock) <= 0 ? 'zero-stock-row bg-red-950 ring-2 ring-red-500/60' : 'bg-white/5'}`}>
+                <tr key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index} aria-rowindex={virtualRow.index + 2} onClick={() => setSelectedRow(row)} className={`daily-detail-row cursor-pointer transition hover:bg-white/10 ${warehouseStockTotal(row) <= 0 ? 'zero-stock-row bg-red-950 ring-2 ring-red-500/60' : 'bg-white/5'}`}>
                   <td className="rounded-l-xl px-2.5 py-2">
                     <ProductImage row={row} className="h-10 w-10 rounded-lg object-cover" />
                   </td>
@@ -1530,7 +1530,7 @@ function DailyDetailPage({ data, scopeTitle, periodLabel, onClose }: { data: Das
                    <td className="px-2.5 py-2 font-bold">{productValue(row, 'currentPriceWithIva', money(row.currentPriceWithIva))}</td>
                    <td className="px-2.5 py-2">{productValue(row, 'lastPurchase')}</td>
                    <td className="px-2.5 py-2">{productValue(row, 'lastPurchaseQuantity')}</td>
-                   <td className={`px-2.5 py-2 font-black ${Number(row.stockTotal ?? row.stock) <= 0 ? 'rounded-lg bg-red-600 text-white' : 'text-[#18b8b1]'}`}>{productValue(row, 'stockTotal')}</td>
+                   <td className={`px-2.5 py-2 font-black ${warehouseStockTotal(row) <= 0 ? 'rounded-lg bg-red-600 text-white' : 'text-[#18b8b1]'}`}>{warehouseStockTotal(row)}</td>
                     {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2 font-black text-cyan-100">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
                    <td className="rounded-r-xl px-2.5 py-2 font-black">{productValue(row, 'marginPercent', percent(row.marginPercent))}</td>
                    <td className="rounded-r-xl px-2.5 py-2 font-black text-[#18b8b1]">{productValue(row, 'currentMarginPercent', percentTwo(row.currentMarginPercent))}</td>
@@ -1574,7 +1574,7 @@ function ProductVariablesModal({ row, onClose }: { row: ProductRow; onClose: () 
     ['Ganancia Total', productValue(row, 'totalProfit', money(row.totalProfit))],
     ['Margen Ganancia %', productValue(row, 'marginPercent', percent(row.marginPercent))],
     ['Margen Actual %', productValue(row, 'currentMarginPercent', percentTwo(row.currentMarginPercent))],
-    ['Stock Total Ventas', productValue(row, 'stockTotal')],
+    ['Stock Total', warehouseStockTotal(row)],
     ['Rotación', productValue(row, 'rotation', row.rotation.toFixed(2))],
     ['Promedio mensual vendido', productValue(row, 'averageMonthlySales', row.averageMonthlySales.toFixed(2))],
     ['Cobertura estimada días', productValue(row, 'estimatedDaysInventory', row.estimatedDaysInventory >= 999 ? '999+' : row.estimatedDaysInventory)],
@@ -1644,8 +1644,8 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
 
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-gradient-to-br from-corporateBlue to-slate-950 p-4 text-white shadow-xl">
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Stock Total Ventas</div>
-            <div className="mt-1 text-3xl font-black">{row.stockTotal}</div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Stock Total</div>
+            <div className="mt-1 text-3xl font-black">{warehouseStockTotal(row)}</div>
           </div>
           <div className="rounded-2xl bg-gradient-to-br from-corporateRed to-red-900 p-4 text-white shadow-xl">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-white/60">Cantidad Vendida</div>
@@ -1672,7 +1672,7 @@ function ProductDrawer({ row, periodMonths, onClose }: { row: ProductRow; period
           <Detail label="Ganancia Total" value={money(row.totalProfit)} />
           <Detail label="Margen" value={percent(row.marginPercent)} />
           <Detail label="Margen Actual" value={percentTwo(row.currentMarginPercent)} />
-          <Detail label="Stock Total Ventas" value={row.stockTotal} />
+          <Detail label="Stock Total" value={warehouseStockTotal(row)} />
           {Object.entries(row.warehouseStocks ?? {}).map(([warehouse, stock]) => <Detail key={warehouse} label={warehouseStockLabel(warehouse)} value={stock} />)}
           <Detail label="Última Compra" value={row.lastPurchase} />
           <Detail label="Recomendación" value={row.recommendation} />
