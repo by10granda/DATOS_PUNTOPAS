@@ -17,7 +17,10 @@ const branchConfigs = {
     name: 'VARIEDADES PAS',
     baseUrl: () => process.env.SIAPE_API_BASE_URL_SUCURSAL2 ?? 'https://api-sucursal2.distribuidor-puntopas.com',
     user: () => process.env.SIAPE_API_USER_SUCURSAL2 ?? process.env.SIAPE_API_USER,
-    password: () => process.env.SIAPE_API_PASSWORD_SUCURSAL2 ?? process.env.SIAPE_API_PASSWORD
+    password: () => process.env.SIAPE_API_PASSWORD_SUCURSAL2 ?? process.env.SIAPE_API_PASSWORD,
+    // Sucursal 2 reports some products with zero stock while /api/item?code still
+    // holds units in GALPON MADERERA. Those products are verified one by one.
+    detailStock: true
   },
   'STIHL': {
     name: 'STIHL',
@@ -35,7 +38,7 @@ export const resolveBranchConfig = (branchName) => {
   const user = config.user();
   const password = config.password();
   if (!user || !password) throw new Error(`Faltan credenciales SIAPE para ${branchName}`);
-  return { name: config.name, baseUrl, user, password };
+  return { name: config.name, baseUrl, user, password, detailStock: config.detailStock === true };
 };
 
 const numberValue = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -105,13 +108,92 @@ export const fetchJson = async (baseUrl, path, token) => {
   return response.json();
 };
 
-const fetchSnapshot = async (baseUrl, token) => {
+const detailWarehouses = (stockBodega = []) => {
+  const byName = new Map();
+  for (const warehouse of stockBodega) {
+    const name = textValue(warehouse?.txDescripcionBodega, '').toUpperCase();
+    if (!name) continue;
+    byName.set(name, (byName.get(name) ?? 0) + Math.max(0, numberValue(warehouse?.qnStock)));
+  }
+  return Array.from(byName.entries()).map(([bodegaALMACEN, stock]) => ({ bodegaALMACEN, stock }));
+};
+
+const warehouseTotal = (bodegas = []) => bodegas.reduce(
+  (sum, warehouse) => sum + Math.max(0, numberValue(warehouse?.stock)), 0,
+);
+
+// `reporteinventario` and `/item/inventario` sometimes report zero for a product
+// whose real stock still lives in another warehouse (e.g. GALPON MADERERA).
+// Only products with zero known stock are verified against /api/item?code.
+const enrichZeroStockFromDetail = async (baseUrl, token, inventory, stockInventory) => {
+  const inventoryByCode = new Map(inventory.map((item) => [item.codigo, item]));
+  const stockByCode = new Map(stockInventory.map((item) => [item.codigo, item]));
+  const candidates = new Set();
+
+  for (const item of inventory) {
+    if (warehouseTotal(item.bodegas) <= 0) candidates.add(item.codigo);
+  }
+  for (const item of stockInventory) {
+    if (!(numberValue(item.disponible) > 0)) candidates.add(item.codigo);
+  }
+  if (!candidates.size) return;
+
+  const maxCodes = Number(process.env.SIAPE_DETAIL_STOCK_MAX_CODES ?? 8000);
+  const concurrency = Number(process.env.SIAPE_DETAIL_STOCK_CONCURRENCY ?? 60);
+  const codes = Array.from(candidates).slice(0, Math.max(0, maxCodes));
+  const details = new Map();
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < codes.length) {
+      const code = codes[nextIndex++];
+      try {
+        const detail = await fetchJson(baseUrl, `/api/item?code=${encodeURIComponent(code)}`, token);
+        const bodegas = detailWarehouses(detail?.stockBodega);
+        if (warehouseTotal(bodegas) > 0) details.set(code, { bodegas, description: textValue(detail?.txDescripcion) });
+      } catch {
+        // A failed detail probe keeps the aggregate stock; it must not break the dashboard.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), codes.length) }, worker));
+
+  for (const [code, detail] of details) {
+    const total = warehouseTotal(detail.bodegas);
+    const existing = inventoryByCode.get(code);
+
+    if (existing) {
+      existing.bodegas = detail.bodegas;
+      existing.disponibilidad = total;
+      if (!textValue(existing.descripcion) && detail.description) existing.descripcion = detail.description;
+    } else {
+      const created = {
+        codigo: code,
+        descripcion: detail.description,
+        disponibilidad: total,
+        dias_en_bodega: 0,
+        bodegas: detail.bodegas,
+        niveles_precio: [],
+        proveedores: []
+      };
+      inventory.push(created);
+      inventoryByCode.set(code, created);
+    }
+
+    const stockRow = stockByCode.get(code);
+    if (stockRow) stockRow.disponible = total;
+    else stockInventory.push({ codigo: code, disponible: total });
+  }
+};
+
+const fetchSnapshot = async (baseUrl, token, options = {}) => {
   const [inventory, catalog, stockInventory] = await Promise.all([
     fetchJson(baseUrl, '/api/item/reporteinventario', token),
     fetchJson(baseUrl, '/api/item/search3', token),
     fetchJson(baseUrl, '/api/item/inventario', token)
   ]);
   if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
+  if (options.detailStock) await enrichZeroStockFromDetail(baseUrl, token, inventory, stockInventory);
   return { inventory, catalog, stockInventory };
 };
 
@@ -127,9 +209,9 @@ export const createSnapshotLoader = (branchName, ttlMs = SNAPSHOT_TTL_MS) => {
     if (ttlMs > 0 && cached && Date.now() - cached.loadedAt < ttlMs) return cached.value;
     if (inFlight) return inFlight;
     inFlight = (async () => {
-      const { baseUrl, user, password } = resolveBranchConfig(branchName);
+      const { baseUrl, user, password, detailStock } = resolveBranchConfig(branchName);
       const token = await getToken(baseUrl, { user, password, branch: branchName });
-      const value = await fetchSnapshot(baseUrl, token);
+      const value = await fetchSnapshot(baseUrl, token, { detailStock });
       if (ttlMs > 0) cached = { value, loadedAt: Date.now() };
       return value;
     })().finally(() => { inFlight = null; });
@@ -315,9 +397,9 @@ const normalizeProviderCostWithIva = (rawCostWithIva, providerCost, publicPriceW
 };
 
 export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', branchName = 'ALMACEN PAS', options = {}) => {
-  const { name: branch, baseUrl, user, password } = resolveBranchConfig(branchName);
+  const { name: branch, baseUrl, user, password, detailStock } = resolveBranchConfig(branchName);
   const token = await getToken(baseUrl, { user, password, branch });
-  const loadSnapshot = options.loadSnapshot ?? (() => fetchSnapshot(baseUrl, token));
+  const loadSnapshot = options.loadSnapshot ?? (() => fetchSnapshot(baseUrl, token, { detailStock }));
   const [snapshot, sales] = await Promise.all([
     loadSnapshot(),
     fetchSales(baseUrl, token, dateStart, dateEnd, options)

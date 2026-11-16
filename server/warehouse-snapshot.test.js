@@ -156,4 +156,36 @@ for (const [backend, loadProducts] of [['local', loadLocalProducts], ['vercel', 
     assert.equal(byCode.get('B').stockTotal, 5);
     assert.equal(byCode.get('B').stock, 0);
   });
+
+  test(`${backend}: sucursal 2 recovers stock hidden in another warehouse`, async (t) => {
+    useBranchEnv(t, '_SUCURSAL2', `https://detail-${backend}.example`);
+    let detailCalls = 0;
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const { pathname, searchParams } = new URL(url);
+      if (pathname === '/api/usuario/login') return Response.json({ token: 'test-token' });
+      if (pathname === '/api/item/reporteinventario') {
+        return Response.json([{ codigo: 'REFRI', descripcion: 'REFRIGERADORA', bodegas: [{ bodegaALMACEN: 'BODEGA GENERAL SL', stock: 0 }] }]);
+      }
+      if (pathname === '/api/item/search3') return Response.json([]);
+      if (pathname === '/api/item/inventario') return Response.json([{ codigo: 'REFRI', disponible: 0 }]);
+      if (pathname === '/api/item') {
+        detailCalls += 1;
+        assert.equal(searchParams.get('code'), 'REFRI');
+        return Response.json({ stockBodega: [
+          { txDescripcionBodega: 'BODEGA GENERAL SL', qnStock: 0 },
+          { txDescripcionBodega: 'EXHIBICION', qnStock: 0 },
+          { txDescripcionBodega: 'GALPON MADERERA', qnStock: 8 },
+        ] });
+      }
+      if (pathname === '/api/factura/reporteventas') return Response.json([]);
+      throw new Error(`Unexpected path: ${pathname}`);
+    });
+
+    const products = await loadProducts('2026-01-01', '2026-01-02', 'week', 'VARIEDADES PAS');
+    const product = products.find((row) => row.code === 'REFRI');
+    assert.deepEqual(product.warehouseStocks, { 'BODEGA GENERAL SL': 0, EXHIBICION: 0, 'GALPON MADERERA': 8 });
+    assert.equal(product.stockTotal, 8);
+    assert.equal(product.stock, 8);
+    assert.ok(detailCalls >= 1);
+  });
 }
