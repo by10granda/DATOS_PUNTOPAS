@@ -122,43 +122,57 @@ const warehouseTotal = (bodegas = []) => bodegas.reduce(
   (sum, warehouse) => sum + Math.max(0, numberValue(warehouse?.stock)), 0,
 );
 
-// `reporteinventario` and `/item/inventario` sometimes report zero for a product
-// whose real stock still lives in another warehouse (e.g. GALPON MADERERA).
-// Only products with zero known stock are verified against /api/item?code.
-const enrichZeroStockFromDetail = async (baseUrl, token, inventory, stockInventory) => {
+const detailStockCache = new Map();
+const DETAIL_STOCK_TTL_MS = Number(process.env.SIAPE_DETAIL_STOCK_TTL_MS ?? 10 * 60 * 1000);
+
+// `reporteinventario` and `/item/inventario` do not always expose every warehouse
+// of a product (e.g. units held in GALPON MADERERA while the report says zero).
+// /api/item?code is the source of truth for the per-warehouse breakdown, so every
+// known product is verified against it and the result is cached per branch.
+const enrichWarehouseStockFromDetail = async (baseUrl, token, inventory, stockInventory, catalog) => {
   const inventoryByCode = new Map(inventory.map((item) => [item.codigo, item]));
   const stockByCode = new Map(stockInventory.map((item) => [item.codigo, item]));
-  const candidates = new Set();
+  const codes = new Set();
+  for (const item of inventory) if (item.codigo) codes.add(item.codigo);
+  for (const item of stockInventory) if (item.codigo) codes.add(item.codigo);
+  for (const item of catalog) if (item.codigo) codes.add(item.codigo);
+  if (!codes.size) return;
 
-  for (const item of inventory) {
-    if (warehouseTotal(item.bodegas) <= 0) candidates.add(item.codigo);
-  }
-  for (const item of stockInventory) {
-    if (!(numberValue(item.disponible) > 0)) candidates.add(item.codigo);
-  }
-  if (!candidates.size) return;
+  const cachePrefix = `${baseUrl}\u0000`;
+  const cachedDetails = new Map();
+  const codesToFetch = [];
+  const now = Date.now();
 
-  const maxCodes = Number(process.env.SIAPE_DETAIL_STOCK_MAX_CODES ?? 8000);
+  for (const code of codes) {
+    const cached = detailStockCache.get(`${cachePrefix}${code}`);
+    if (cached && now - cached.loadedAt < DETAIL_STOCK_TTL_MS) cachedDetails.set(code, cached);
+    else codesToFetch.push(code);
+  }
+
+  const maxCodes = Number(process.env.SIAPE_DETAIL_STOCK_MAX_CODES ?? 15000);
   const concurrency = Number(process.env.SIAPE_DETAIL_STOCK_CONCURRENCY ?? 60);
-  const codes = Array.from(candidates).slice(0, Math.max(0, maxCodes));
-  const details = new Map();
+  const fetchCodes = codesToFetch.slice(0, Math.max(0, maxCodes));
+  const fetchedDetails = new Map();
   let nextIndex = 0;
 
   const worker = async () => {
-    while (nextIndex < codes.length) {
-      const code = codes[nextIndex++];
+    while (nextIndex < fetchCodes.length) {
+      const code = fetchCodes[nextIndex++];
       try {
         const detail = await fetchJson(baseUrl, `/api/item?code=${encodeURIComponent(code)}`, token);
-        const bodegas = detailWarehouses(detail?.stockBodega);
-        if (warehouseTotal(bodegas) > 0) details.set(code, { bodegas, description: textValue(detail?.txDescripcion) });
+        if (!Array.isArray(detail?.stockBodega) || detail.stockBodega.length === 0) continue;
+        const bodegas = detailWarehouses(detail.stockBodega);
+        const record = { bodegas, description: textValue(detail?.txDescripcion) };
+        fetchedDetails.set(code, record);
+        detailStockCache.set(`${cachePrefix}${code}`, { ...record, loadedAt: Date.now() });
       } catch {
         // A failed detail probe keeps the aggregate stock; it must not break the dashboard.
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), codes.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), fetchCodes.length) }, worker));
 
-  for (const [code, detail] of details) {
+  for (const [code, detail] of new Map([...cachedDetails, ...fetchedDetails])) {
     const total = warehouseTotal(detail.bodegas);
     const existing = inventoryByCode.get(code);
 
@@ -166,7 +180,7 @@ const enrichZeroStockFromDetail = async (baseUrl, token, inventory, stockInvento
       existing.bodegas = detail.bodegas;
       existing.disponibilidad = total;
       if (!textValue(existing.descripcion) && detail.description) existing.descripcion = detail.description;
-    } else {
+    } else if (total > 0) {
       const created = {
         codigo: code,
         descripcion: detail.description,
@@ -182,7 +196,7 @@ const enrichZeroStockFromDetail = async (baseUrl, token, inventory, stockInvento
 
     const stockRow = stockByCode.get(code);
     if (stockRow) stockRow.disponible = total;
-    else stockInventory.push({ codigo: code, disponible: total });
+    else if (total > 0) stockInventory.push({ codigo: code, disponible: total });
   }
 };
 
@@ -193,7 +207,7 @@ const fetchSnapshot = async (baseUrl, token, options = {}) => {
     fetchJson(baseUrl, '/api/item/inventario', token)
   ]);
   if (!Array.isArray(stockInventory)) throw new Error('Respuesta invalida de /api/item/inventario');
-  if (options.detailStock) await enrichZeroStockFromDetail(baseUrl, token, inventory, stockInventory);
+  if (options.detailStock) await enrichWarehouseStockFromDetail(baseUrl, token, inventory, stockInventory, catalog);
   return { inventory, catalog, stockInventory };
 };
 
