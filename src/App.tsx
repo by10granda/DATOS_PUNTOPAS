@@ -88,6 +88,8 @@ function App() {
   const [dark] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
+  const showSpinnerRef = useRef(false);
+  const spinnerRequestsRef = useRef(0);
   const [drawer, setDrawer] = useState<{ row: ProductRow; periodMonths: PeriodMonths } | null>(null);
   const [dailyDetailOpen, setDailyDetailOpen] = useState(false);
   const [recommendationsOpen, setRecommendationsOpen] = useState(false);
@@ -109,7 +111,12 @@ function App() {
     let active = true;
 
     const loadDashboard = () => {
-      if (!hasLoadedRef.current) setLoading(true);
+      const showSpinner = showSpinnerRef.current || !hasLoadedRef.current;
+      showSpinnerRef.current = false;
+      if (showSpinner) {
+        spinnerRequestsRef.current += 1;
+        setLoading(true);
+      }
       fetchDashboard({
         branch: selectedBranch,
         periodMonths,
@@ -133,7 +140,9 @@ function App() {
           if (active) setError(err.message);
         })
         .finally(() => {
-          if (active) setLoading(false);
+          if (!showSpinner) return;
+          spinnerRequestsRef.current = Math.max(0, spinnerRequestsRef.current - 1);
+          if (spinnerRequestsRef.current === 0) setLoading(false);
         });
     };
 
@@ -163,6 +172,7 @@ function App() {
       return;
     }
     setManualError(null);
+    showSpinnerRef.current = true;
     setQueryMode('manual');
     setAppliedManualRange({ start: manualStart, end: manualEnd });
     setHistoricalOpen(false);
@@ -170,6 +180,7 @@ function App() {
 
   const resetToRealtime = () => {
     setManualError(null);
+    showSpinnerRef.current = true;
     setQueryMode('preset');
     setAppliedManualRange(null);
     setHistoricalOpen(false);
@@ -189,6 +200,7 @@ function App() {
     setSelectedBranch(branchName);
     setData(null);
     setError(null);
+    showSpinnerRef.current = true;
     setLoading(true);
     hasLoadedRef.current = false;
     setDrawer(null);
@@ -523,8 +535,18 @@ function App() {
           </>
         )}
 
-        {loading && activePage === 'general' && <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">Cargando análisis...</div>}
+        
       </main>
+
+      {loading && activePage === 'general' && (
+        <div role="status" aria-live="polite" className="fixed inset-0 z-[200] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-slate-900/95 px-10 py-8 text-center shadow-2xl shadow-black/50">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-cyan-100/15 border-t-corporateGreen" />
+            <div className="text-sm font-black uppercase tracking-[0.22em] text-white">Cargando datos...</div>
+            <div className="text-xs font-bold text-cyan-100/60">Consultando SIAPE, por favor espere</div>
+          </div>
+        </div>
+      )}
 
       {drawer && <ProductDrawer row={{ ...drawer.row, stockTotal: data?.rows.find((row) => row.id === drawer.row.id)?.stockTotal ?? drawer.row.stockTotal }} periodMonths={drawer.periodMonths} onClose={() => setDrawer(null)} />}
       {historicalOpen && <HistoricalModal manualStart={manualStart} manualEnd={manualEnd} manualError={manualError} onStartChange={setManualStart} onEndChange={setManualEnd} onApply={applyManualRange} onClose={() => setHistoricalOpen(false)} />}

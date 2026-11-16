@@ -123,12 +123,12 @@ const warehouseTotal = (bodegas = []) => bodegas.reduce(
 );
 
 const detailStockCache = new Map();
-const DETAIL_STOCK_TTL_MS = Number(process.env.SIAPE_DETAIL_STOCK_TTL_MS ?? 10 * 60 * 1000);
+const DETAIL_STOCK_TTL_MS = Number(process.env.SIAPE_DETAIL_STOCK_TTL_MS ?? 15 * 60 * 1000);
 
 // `reporteinventario` and `/item/inventario` do not always expose every warehouse
 // of a product (e.g. units held in GALPON MADERERA while the report says zero).
 // /api/item?code is the source of truth for the per-warehouse breakdown, so every
-// known product is verified against it and the result is cached per branch.
+// product with inventory is verified against it and the result is cached per branch.
 const enrichWarehouseStockFromDetail = async (baseUrl, token, inventory, stockInventory, catalog) => {
   const inventoryByCode = new Map(inventory.map((item) => [item.codigo, item]));
   const stockByCode = new Map(stockInventory.map((item) => [item.codigo, item]));
@@ -331,6 +331,32 @@ const mapWarehouseStocks = (warehouses = []) => Object.fromEntries(
   warehouses.map((warehouse) => [textValue(warehouse?.bodegaALMACEN, 'SIN BODEGA').toUpperCase(), Math.max(0, numberValue(warehouse?.stock))])
 );
 
+const salesCache = new Map();
+const salesInflight = new Map();
+const SALES_TTL_MS = Number(process.env.SIAPE_SALES_TTL_MS ?? 90 * 1000);
+
+// Sales for a closed date range never change and the current day is only appended to.
+// Reusing the downloaded pages for a short window removes the heaviest SIAPE
+// round-trip when the same range is requested again (filters, manual range, autorefresh).
+const fetchSalesCached = async (baseUrl, token, dateStart, dateEnd) => {
+  const key = `${baseUrl}\u0000${dateStart}\u0000${dateEnd}`;
+  const cached = salesCache.get(key);
+  if (cached && Date.now() - cached.loadedAt < SALES_TTL_MS) return cached.sales;
+  const pending = salesInflight.get(key);
+  if (pending) return pending;
+
+  const request = fetchSales(baseUrl, token, dateStart, dateEnd)
+    .then((sales) => {
+      salesCache.set(key, { loadedAt: Date.now(), sales });
+      return sales;
+    })
+    .finally(() => {
+      salesInflight.delete(key);
+    });
+  salesInflight.set(key, request);
+  return request;
+};
+
 const fetchSales = async (baseUrl, token, dateStart, dateEnd, options = {}) => {
   const pageSize = Number(process.env.SIAPE_PAGE_SIZE ?? 5000);
   const rows = [];
@@ -416,7 +442,9 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
   const loadSnapshot = options.loadSnapshot ?? (() => fetchSnapshot(baseUrl, token, { detailStock }));
   const [snapshot, sales] = await Promise.all([
     loadSnapshot(),
-    fetchSales(baseUrl, token, dateStart, dateEnd, options)
+    options.strictSalesPagination || options.onRawSales
+      ? fetchSales(baseUrl, token, dateStart, dateEnd, options)
+      : fetchSalesCached(baseUrl, token, dateStart, dateEnd)
   ]);
   const { inventory, catalog, stockInventory } = snapshot;
 

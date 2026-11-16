@@ -56,6 +56,41 @@ const countInclusiveMonths = (dateStart: string, dateEnd: string) => {
   return Math.max(1, end.diff(start, 'month') + 1);
 };
 
+/**
+ * Building a dashboard costs several seconds of CPU even when SIAPE is already
+ * cached, so identical requests (30s autorefresh, re-applying the same range,
+ * switching filters back and forth) reuse the last payload for a short window.
+ * Closed date ranges are stable, so they keep a longer TTL than "today".
+ */
+const dashboardCache = new Map<string, { loadedAt: number; ttlMs: number; payload: unknown }>();
+const dashboardInflight = new Map<string, Promise<unknown>>();
+const DASHBOARD_TTL_MS = Number(process.env.DASHBOARD_CACHE_TTL_MS ?? 45 * 1000);
+const DASHBOARD_HISTORY_TTL_MS = Number(process.env.DASHBOARD_HISTORY_CACHE_TTL_MS ?? 10 * 60 * 1000);
+const DASHBOARD_CACHE_ENTRIES = Number(process.env.DASHBOARD_CACHE_ENTRIES ?? 3);
+
+const dashboardTtl = (dateEnd: string) => dayjs(dateEnd).isBefore(dayjs().format('YYYY-MM-DD'))
+  ? DASHBOARD_HISTORY_TTL_MS
+  : DASHBOARD_TTL_MS;
+
+const readDashboardCache = (key: string) => {
+  const cached = dashboardCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.loadedAt >= cached.ttlMs) {
+    dashboardCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+};
+
+const rememberDashboard = (key: string, payload: unknown, ttlMs: number) => {
+  dashboardCache.set(key, { loadedAt: Date.now(), ttlMs, payload });
+  while (dashboardCache.size > Math.max(1, DASHBOARD_CACHE_ENTRIES)) {
+    const oldest = dashboardCache.keys().next().value;
+    if (oldest === undefined) break;
+    dashboardCache.delete(oldest);
+  }
+};
+
 const resolveDateRange = (req: express.Request, periodMonths: PeriodMonths) => {
   const dateStart = typeof req.query.dateStart === 'string' ? req.query.dateStart : null;
   const dateEnd = typeof req.query.dateEnd === 'string' ? req.query.dateEnd : null;
@@ -105,9 +140,30 @@ app.get('/api/dashboard', async (req, res) => {
     }
 
     resolveBranchConfig(branch);
-    const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
-    const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, warehouseNames });
-    res.json(req.query.compact === '1' ? compactDashboard(payload) : payload);
+    const compact = req.query.compact === '1';
+    const cacheKey = JSON.stringify([branch, effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, compact]);
+    const cached = readDashboardCache(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+    const pending = dashboardInflight.get(cacheKey);
+    if (pending) {
+      res.json(await pending);
+      return;
+    }
+
+    const request = (async () => {
+      const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
+      const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, warehouseNames });
+      const transported = compact ? compactDashboard(payload) : payload;
+      rememberDashboard(cacheKey, transported, dashboardTtl(dateEnd));
+      return transported;
+    })().finally(() => {
+      dashboardInflight.delete(cacheKey);
+    });
+    dashboardInflight.set(cacheKey, request);
+    res.json(await request);
   } catch (error) {
     res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar datos desde SIAPE' });
   }

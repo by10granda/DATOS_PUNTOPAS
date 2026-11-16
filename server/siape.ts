@@ -174,7 +174,7 @@ type WarehouseDetail = {
 };
 
 const detailStockCache = new Map<string, WarehouseDetail & { loadedAt: number }>();
-const DETAIL_STOCK_TTL_MS = Number(process.env.SIAPE_DETAIL_STOCK_TTL_MS ?? 10 * 60 * 1000);
+const DETAIL_STOCK_TTL_MS = Number(process.env.SIAPE_DETAIL_STOCK_TTL_MS ?? 15 * 60 * 1000);
 
 /**
  * `reporteinventario` and `/item/inventario` do not always expose every warehouse
@@ -448,6 +448,35 @@ const mapWarehouseStocks = (warehouses: SiapeInventoryItem['bodegas'] = []) => O
   warehouses.map((warehouse) => [textValue(warehouse?.bodegaALMACEN, 'SIN BODEGA').toUpperCase(), Math.max(0, numberValue(warehouse?.stock))])
 );
 
+const salesCache = new Map<string, { loadedAt: number; sales: SiapeSaleItem[] }>();
+const salesInflight = new Map<string, Promise<SiapeSaleItem[]>>();
+const SALES_TTL_MS = Number(process.env.SIAPE_SALES_TTL_MS ?? 90 * 1000);
+
+/**
+ * Sales for a closed date range never change, and even the current day is only
+ * appended to. Reusing the downloaded pages for a short window removes the
+ * heaviest SIAPE round-trip when the same range is requested again (filters,
+ * manual range re-apply, 30s auto-refresh).
+ */
+const fetchSalesCached = async (baseUrl: string, token: string, dateStart: string, dateEnd: string) => {
+  const key = `${baseUrl}\u0000${dateStart}\u0000${dateEnd}`;
+  const cached = salesCache.get(key);
+  if (cached && Date.now() - cached.loadedAt < SALES_TTL_MS) return cached.sales;
+  const pending = salesInflight.get(key);
+  if (pending) return pending;
+
+  const request = fetchSales(baseUrl, token, dateStart, dateEnd)
+    .then((sales) => {
+      salesCache.set(key, { loadedAt: Date.now(), sales });
+      return sales;
+    })
+    .finally(() => {
+      salesInflight.delete(key);
+    });
+  salesInflight.set(key, request);
+  return request;
+};
+
 const fetchSales = async (baseUrl: string, token: string, dateStart: string, dateEnd: string) => {
   const pageSize = Number(process.env.SIAPE_PAGE_SIZE ?? 5000);
   const rows: SiapeSaleItem[] = [];
@@ -498,7 +527,7 @@ export const loadSiapeProducts = async (
   const loadSnapshot = options.loadSnapshot ?? (() => fetchSnapshot(baseUrl, token, { detailStock }));
   const [snapshot, sales] = await Promise.all([
     loadSnapshot(),
-    fetchSales(baseUrl, token, dateStart, dateEnd),
+    fetchSalesCached(baseUrl, token, dateStart, dateEnd),
   ]);
   const { inventory, catalog, stockInventory } = snapshot;
 

@@ -6,6 +6,36 @@ export const maxDuration = 60;
 const queryValue = (value) => Array.isArray(value) ? value[0] : typeof value === 'string' ? value : null;
 const countInclusiveMonths = (dateStart, dateEnd) => Math.max(1, dayjs(dateEnd).startOf('month').diff(dayjs(dateStart).startOf('month'), 'month') + 1);
 
+// Building a dashboard costs several seconds of CPU even with SIAPE cached, so
+// identical requests (autorefresh, re-applying a range, toggling filters) reuse the
+// last payload for a short window. Closed date ranges get a longer TTL.
+const dashboardCache = new Map();
+const dashboardInflight = new Map();
+const DASHBOARD_TTL_MS = Number(process.env.DASHBOARD_CACHE_TTL_MS ?? 45 * 1000);
+const DASHBOARD_HISTORY_TTL_MS = Number(process.env.DASHBOARD_HISTORY_CACHE_TTL_MS ?? 10 * 60 * 1000);
+const DASHBOARD_CACHE_ENTRIES = Number(process.env.DASHBOARD_CACHE_ENTRIES ?? 3);
+
+const dashboardTtl = (dateEnd) => dayjs(dateEnd).isBefore(dayjs().format('YYYY-MM-DD')) ? DASHBOARD_HISTORY_TTL_MS : DASHBOARD_TTL_MS;
+
+const readDashboardCache = (key) => {
+  const cached = dashboardCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.loadedAt >= cached.ttlMs) {
+    dashboardCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+};
+
+const rememberDashboard = (key, payload, ttlMs) => {
+  dashboardCache.set(key, { loadedAt: Date.now(), ttlMs, payload });
+  while (dashboardCache.size > Math.max(1, DASHBOARD_CACHE_ENTRIES)) {
+    const oldest = dashboardCache.keys().next().value;
+    if (oldest === undefined) break;
+    dashboardCache.delete(oldest);
+  }
+};
+
 const resolveDateRange = (query, periodMonths) => {
   const dateStart = queryValue(query.dateStart);
   const dateEnd = queryValue(query.dateEnd);
@@ -36,8 +66,24 @@ export default async function handler(req, res) {
     const transport = (payload) => queryValue(query.compact) === '1' ? compactDashboard(payload) : payload;
     if (!branch) return res.status(200).json(transport(buildDashboard([], params)));
     resolveBranchConfig(branch);
-    const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
-    return res.status(200).json(transport(buildDashboard(products, { ...params, warehouseNames })));
+    const compact = queryValue(query.compact) === '1';
+    const cacheKey = JSON.stringify([branch, effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, compact]);
+    const cached = readDashboardCache(cacheKey);
+    if (cached) return res.status(200).json(cached);
+    const pending = dashboardInflight.get(cacheKey);
+    if (pending) return res.status(200).json(await pending);
+
+    const request = (async () => {
+      const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
+      const payload = buildDashboard(products, { ...params, warehouseNames });
+      const transported = compact ? compactDashboard(payload) : payload;
+      rememberDashboard(cacheKey, transported, dashboardTtl(dateEnd));
+      return transported;
+    })().finally(() => {
+      dashboardInflight.delete(cacheKey);
+    });
+    dashboardInflight.set(cacheKey, request);
+    return res.status(200).json(await request);
   } catch (error) {
     return res.status(502).json({ message: error instanceof Error ? error.message : 'No se pudo cargar datos desde SIAPE', branches });
   }
