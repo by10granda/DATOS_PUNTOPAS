@@ -142,6 +142,13 @@ body {
   background: #fff5f5 !important;
 }
 
+/* Products that rotated a single time in a 2+ month range. */
+.premium-shell main tbody tr.single-sale-row,
+.premium-shell main tbody tr.single-sale-row:hover {
+  background: #fde047 !important;
+  color: #713f12;
+}
+
 .premium-shell main th {
   color: #7f1d1d !important;
   border-bottom-color: rgba(255, 0, 0, 0.18) !important;

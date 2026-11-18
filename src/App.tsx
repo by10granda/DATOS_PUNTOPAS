@@ -93,6 +93,7 @@ function App() {
   const [drawer, setDrawer] = useState<{ row: ProductRow; periodMonths: PeriodMonths } | null>(null);
   const [dailyDetailOpen, setDailyDetailOpen] = useState(false);
   const [recommendationsOpen, setRecommendationsOpen] = useState(false);
+  const [noSalesOpen, setNoSalesOpen] = useState(false);
   const [sortKey, setSortKey] = useState<keyof ProductRow>('salesXMonths');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -314,6 +315,8 @@ function App() {
           <DataDashboard branches={branches} initialBranch={selectedBranch} onClose={() => setActivePage('general')} />
         ) : dailyDetailOpen && data ? (
           <DailyDetailPage data={data} scopeTitle={`Vista general de ${selectedBranch ?? 'ALMACEN PAS'}`} periodLabel={activePeriodLabel} onClose={() => setDailyDetailOpen(false)} />
+        ) : noSalesOpen && data ? (
+          <NoSalesProductsPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setNoSalesOpen(false)} onRowClick={(row) => setDrawer({ row, periodMonths })} />
         ) : recommendationsOpen && data ? (
           <RecommendationsPage data={data} scopeTitle={dataScopeTitle} periodLabel={activePeriodLabel} onClose={() => setRecommendationsOpen(false)} onRowClick={(row) => setDrawer({ row, periodMonths })} />
         ) : (
@@ -516,6 +519,7 @@ function App() {
                 title={titleWithScope('PRODUCTOS SIN VENTAS NI ROTACIÓN')}
                 rows={data.noSalesRows}
                 hidePagination
+                onViewAll={() => setNoSalesOpen(true)}
                 onRowClick={(row) => setDrawer({ row, periodMonths })}
                 onExportExcel={() => exportExcel(data.noSalesRows, 'sin-ventas')}
                 onExportPdf={() => exportPdf(data.noSalesRows, 'Sin Ventas')}
@@ -1165,6 +1169,7 @@ function DataSection({
   rows,
   onRowClick,
   hidePagination,
+  onViewAll,
   page,
   totalPages,
   onPrev,
@@ -1179,6 +1184,7 @@ function DataSection({
   rows: ProductRow[];
   onRowClick: (row: ProductRow) => void;
   hidePagination?: boolean;
+  onViewAll?: () => void;
   page?: number;
   totalPages?: number;
   onPrev?: () => void;
@@ -1217,6 +1223,9 @@ function DataSection({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="section-title text-sm font-black uppercase text-corporateBlue dark:text-corporateGreen">{title}</div>
         <div className="flex flex-wrap gap-2">
+          {onViewAll && (
+            <button onClick={onViewAll} className="rounded-full border border-corporateGreen bg-corporateGreen px-4 py-2 text-sm font-black text-slate-950 shadow-lg transition hover:-translate-y-0.5">Ver todos</button>
+          )}
           <button onClick={onExportExcel} className="rounded-full bg-corporateBlue px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
           <button onClick={onExportPdf} className="rounded-full bg-corporateRed px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
         </div>
@@ -1278,6 +1287,193 @@ function DataSection({
         </div>
       )}
     </div>
+  );
+}
+
+function NoSalesProductsPage({ data, scopeTitle, periodLabel, onClose, onRowClick }: { data: DashboardResponse; scopeTitle: string; periodLabel: string; onClose: () => void; onRowClick: (row: ProductRow) => void }) {
+  const [query, setQuery] = useState('');
+  const searchTerm = useDeferredValue(query.trim());
+
+  /**
+   * A single sale is only alarming when the selected range covers two months or
+   * more; those products are listed after the zero-rotation ones and highlighted.
+   */
+  const spanDays = useMemo(() => {
+    const start = data.dateStart ? new Date(`${data.dateStart}T00:00:00`).getTime() : NaN;
+    const end = data.dateEnd ? new Date(`${data.dateEnd}T00:00:00`).getTime() : NaN;
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return 1;
+    return Math.max(1, Math.round((end - start) / 86400000) + 1);
+  }, [data.dateStart, data.dateEnd]);
+  const highlightSingleSale = spanDays >= 59;
+
+  const rows = useMemo(() => {
+    const withoutRotation = data.rows.filter((row) => row.salesXMonths === 0 && row.rotation === 0 && row.stock > 0);
+    const singleSale = highlightSingleSale ? data.rows.filter((row) => row.salesXMonths === 1 && row.stock > 0) : [];
+    return [...withoutRotation, ...singleSale].sort((a, b) => a.code.localeCompare(b.code, 'es'));
+  }, [data.rows, highlightSingleSale]);
+  const zeroSalesCount = useMemo(() => rows.filter((row) => row.salesXMonths === 0).length, [rows]);
+  const singleSaleCount = rows.length - zeroSalesCount;
+
+  const filteredRows = useMemo(() => {
+    if (!searchTerm) return rows;
+    const term = normalizeSearch(searchTerm);
+    return rows.filter((row) => [row.code, row.description, row.brand, row.line, row.category, row.type, row.provider]
+      .some((value) => normalizeSearch(String(value ?? '')).includes(term)));
+  }, [rows, searchTerm]);
+
+  const warehouseColumns = useMemo(
+    () => Array.from(new Set(data.availableWarehouses)).sort((a, b) => a.localeCompare(b, 'es')),
+    [data.availableWarehouses],
+  );
+  const columnLabels = ['Código', 'Descripción', 'Marca', 'Línea', 'Categoría', 'Tipo', 'Stock Total', ...warehouseColumns.map(warehouseStockLabel), 'Cantidad Vendida', 'fecha_venta', 'Fecha Última Compra', 'Cantidad Última Compra', 'Proveedor', 'Rotación'];
+  const columnKey = JSON.stringify(columnLabels);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLTableSectionElement>(null);
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const [columnSizing, setColumnSizing] = useState<{ key: string; widths: number[] } | null>(null);
+  const columnWidths = columnSizing?.key === columnKey ? columnSizing.widths : null;
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const getRowKey = useMemo(() => (index: number) => filteredRows[index].id, [filteredRows]);
+  const virtualizer = useVirtualizer({
+    count: filteredRows.length,
+    getScrollElement: () => scrollRef.current,
+    getItemKey: getRowKey,
+    estimateSize: () => 40,
+    overscan: 14,
+    gap: 4,
+    scrollMargin,
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+
+  const exportRows = useMemo(() => filteredRows.map((row) => ({
+    ...row,
+    warehouseStocks: { ...Object.fromEntries(warehouseColumns.map((warehouse) => [warehouse, 0])), ...(row.warehouseStocks ?? {}) },
+  })), [filteredRows, warehouseColumns]);
+
+  useLayoutEffect(() => {
+    if (!columnWidths && virtualRows.length > 0 && headRef.current) {
+      setColumnSizing({ key: columnKey, widths: Array.from(headRef.current.rows[0].cells, (cell) => cell.getBoundingClientRect().width) });
+    }
+  }, [columnKey, columnWidths, virtualRows.length]);
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const head = headRef.current;
+    const body = bodyRef.current;
+    if (!scroller || !head || !body) return;
+    const measureOrigin = () => {
+      setScrollMargin(body.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - scroller.clientTop);
+    };
+    measureOrigin();
+    const observer = new ResizeObserver(measureOrigin);
+    observer.observe(head);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [columnWidths]);
+
+  useLayoutEffect(() => {
+    virtualizer.measure();
+    bodyRef.current?.querySelectorAll<HTMLTableRowElement>('tr[data-index]').forEach((row) => virtualizer.measureElement(row));
+  }, [virtualizer, columnWidths]);
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [searchTerm]);
+
+  const topSpace = virtualRows.length ? virtualRows[0].start - scrollMargin : 0;
+  const bottomSpace = virtualRows.length ? virtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1].end - scrollMargin) : 0;
+
+  return (
+    <section className="premium-card rounded-[1.6rem] p-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.25em] text-corporateRed">Productos sin rotación</div>
+          <h2 className="text-2xl font-black uppercase text-slate-900">Sin ventas ni rotación · {scopeTitle}</h2>
+          <div className="text-sm font-bold text-slate-600">Periodo: {periodLabel}</div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+            <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-50">{zeroSalesCount.toLocaleString('es-EC')} sin ventas</span>
+            {highlightSingleSale && (
+              <span className="rounded-full bg-amber-300 px-3 py-1 text-amber-950">{singleSaleCount.toLocaleString('es-EC')} rotaron 1 sola vez</span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => void exportExcel(exportRows, 'productos-sin-rotacion', { periodLabel, warehouseColumns })} className="rounded-full bg-corporateBlue px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar Excel</button>
+          <button onClick={() => void exportPdf(exportRows, 'Productos Sin Rotación', { periodLabel })} className="rounded-full bg-corporateRed px-4 py-2 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5">Exportar PDF</button>
+          <button onClick={onClose} className="rounded-full border border-slate-200 bg-white px-5 py-2 font-black text-slate-950 shadow-lg transition hover:border-corporateRed hover:bg-red-50">Volver al dashboard</button>
+        </div>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar por código, producto, marca, línea, categoría, tipo o proveedor"
+          className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 outline-none transition focus:border-corporateBlue"
+        />
+        <div className="text-xs font-bold text-slate-500">
+          Mostrando {filteredRows.length.toLocaleString('es-EC')} de {rows.length.toLocaleString('es-EC')} productos
+        </div>
+      </div>
+
+      {highlightSingleSale && (
+        <div className="mb-3 flex items-center gap-2 text-xs font-bold text-amber-900">
+          <span className="inline-block h-3 w-6 rounded bg-amber-300" />
+          En amarillo: productos que rotaron una sola vez en el rango seleccionado (2 meses o más).
+        </div>
+      )}
+
+      <div ref={scrollRef} className="max-h-[calc(100vh-16rem)] overflow-auto scrollbar-thin">
+        <table aria-rowcount={filteredRows.length + 1} className="min-w-[1600px] w-full table-auto border-separate border-spacing-y-1 text-xs" style={columnWidths ? { tableLayout: 'fixed', width: columnWidths.reduce((sum, width) => sum + width, 0) } : undefined}>
+          {columnWidths && <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>}
+          <thead ref={headRef} className="sticky top-0 z-30 bg-white shadow-lg shadow-slate-900/10">
+            <tr aria-rowindex={1}>
+              {columnLabels.map((label) => (
+                <th key={label} className="sticky top-0 z-30 whitespace-nowrap border-b border-red-200 bg-white px-2.5 py-3 text-left font-black uppercase tracking-wide text-red-900">{label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody ref={bodyRef}>
+            {topSpace > 0 && <tr aria-hidden="true"><td colSpan={columnLabels.length} style={{ height: Math.max(0, topSpace - 4) }} /></tr>}
+            {virtualRows.map((virtualRow) => {
+              const row = filteredRows[virtualRow.index];
+              const singleSale = row.salesXMonths === 1;
+              return (
+                <tr
+                  key={virtualRow.key}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  aria-rowindex={virtualRow.index + 2}
+                  onClick={() => onRowClick(row)}
+                  className={`cursor-pointer shadow-sm transition ${singleSale ? 'single-sale-row bg-amber-300 hover:bg-amber-400' : 'bg-white/80 hover:bg-corporateBlue/5'}`}
+                >
+                  <td className="rounded-l-xl px-2.5 py-2 font-black text-corporateBlue">{row.code}</td>
+                  <td className="max-w-[420px] truncate px-2.5 py-2" title={row.description}>{row.description}</td>
+                  <td className="px-2.5 py-2">{row.brand}</td>
+                  <td className="px-2.5 py-2">{row.line}</td>
+                  <td className="px-2.5 py-2">{row.category}</td>
+                  <td className="px-2.5 py-2">{row.type}</td>
+                  <td className="px-2.5 py-2 font-black">{warehouseStockTotal(row)}</td>
+                  {warehouseColumns.map((warehouse) => <td key={`${row.id}-${warehouse}`} className="px-2.5 py-2">{row.warehouseStocks?.[warehouse] ?? 0}</td>)}
+                  <td className={`px-2.5 py-2 font-black ${singleSale ? 'text-amber-950' : 'text-corporateRed'}`}>{row.salesXMonths}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2">{row.saleDate || 'NO CONSTA'}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2">{row.lastPurchase}</td>
+                  <td className="px-2.5 py-2">{row.lastPurchaseQuantity}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2">{row.provider}</td>
+                  <td className="rounded-r-xl px-2.5 py-2 font-bold">{row.rotation.toFixed(2)}</td>
+                </tr>
+              );
+            })}
+            {bottomSpace > 0 && <tr aria-hidden="true"><td colSpan={columnLabels.length} style={{ height: Math.max(0, bottomSpace - 4) }} /></tr>}
+            {filteredRows.length === 0 && (
+              <tr>
+                <td colSpan={columnLabels.length} className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">No hay productos que coincidan con la búsqueda.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
