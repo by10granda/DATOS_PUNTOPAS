@@ -169,13 +169,16 @@ for (const [backend, loadProducts, dashboard] of [
     assert.equal(catalog.line, '');
     assert.equal(catalog.provider, '');
     assert.equal(catalog.publicCost, 12);
+    assert.equal(catalog.pricePuntoPas, 0);
+    assert.equal(catalog.pricePvp, null);
     assert.equal(catalog.salesXMonths, 0);
     assert.ok(catalog.monthlySales.every((sale) => sale.quantity === 0));
     for (const key of ['costProvider', 'costWithIva', 'salePrice', 'saleDate', 'lastPurchase', 'lastPurchaseQuantity',
-      'stockTotal', 'unitProfit', 'totalProfit', 'marginPercent', 'currentMarginPercent', 'rotation', 'estimatedDaysInventory', 'inventorySignal']) {
+      'stockTotal', 'unitProfit', 'totalProfit', 'marginPercent', 'currentMarginPercent', 'rotation', 'estimatedDaysInventory', 'inventorySignal',
+      'pricePuntoPas', 'pricePvp']) {
       assert.ok(catalog.missingFields.includes(key), key);
     }
-    for (const key of ['description', 'brand', 'category', 'publicCost', 'publicCostWithIva', 'currentPriceWithIva', 'pricePvp']) {
+    for (const key of ['description', 'brand', 'category', 'publicCost', 'publicCostWithIva', 'currentPriceWithIva']) {
       assert.ok(!catalog.missingFields.includes(key), key);
     }
     for (const code of ['STOCK', 'STOCKZERO']) {
@@ -194,6 +197,11 @@ for (const [backend, loadProducts, dashboard] of [
     for (const key of ['brand', 'line', 'category', 'type', 'provider', 'salePrice', 'saleDate']) {
       assert.ok(zero.missingFields.includes(key), key);
     }
+    // A level that `reporteinventario` does not return must render as "NO HAY".
+    assert.equal(zero.pricePuntoPas, 0);
+    assert.ok(zero.missingFields.includes('pricePuntoPas'));
+    assert.equal(zero.pricePvp, 0);
+    assert.ok(!zero.missingFields.includes('pricePvp'));
     assert.ok(!rows.get('CATZERO').missingFields.includes('publicCost'));
     for (const code of ['INVALID', 'EMPTY', 'SALEEMPTY']) {
       assert.ok(rows.get(code).missingFields.includes('publicCost'), code);

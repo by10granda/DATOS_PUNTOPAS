@@ -542,8 +542,6 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
   const supplementalCodes = new Set([...catalogByProduct.keys(), ...stockByProduct.keys(), ...salesByProduct.keys()]);
   const supplementalRows = Array.from(supplementalCodes).filter((code) => !inventoryCodes.has(code)).map((code) => {
     const catalogItem = catalogByProduct.get(code);
-    const rawPrice = catalogItem?.precioVentaSinImpuestos ?? sourceSalesByProduct.get(code)?.at(-1)?.precio_venta;
-    const price = numberValue(rawPrice);
     return {
       codigo: code,
       descripcion: textValue(catalogItem?.descripcionItem, textValue(saleDescriptionByProduct.get(code))),
@@ -554,7 +552,9 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
       disponibilidad: 0,
       dias_en_bodega: 0,
       bodegas: [],
-      niveles_precio: hasNumber(rawPrice) ? [{ nivel: 'PVP', precio: price }] : [],
+      // Price levels are only valid when `reporteinventario` returns them; a catalog
+      // price must never be shown as a PVP/PUNTO PAS level.
+      niveles_precio: [],
       proveedores: []
     };
   });
@@ -579,7 +579,9 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
     const providerCostWithIva = fractionalFactor > 1 ? providerCostWithIvaBase / fractionalFactor : providerCostWithIvaBase;
     const effectivePrice = fractionalFactor > 1 ? price / fractionalFactor : price;
     const effectivePublicPriceWithIva = fractionalFactor > 1 ? publicPriceWithIva / fractionalFactor : publicPriceWithIva;
-    const effectivePuntoPasPrice = fractionalFactor > 1 ? numberValue(puntoPas?.precio ?? priceLevel?.precio) / fractionalFactor : numberValue(puntoPas?.precio ?? priceLevel?.precio);
+    const effectivePuntoPasPrice = puntoPas
+      ? (fractionalFactor > 1 ? numberValue(puntoPas.precio) / fractionalFactor : numberValue(puntoPas.precio))
+      : 0;
     const effectivePvpPrice = pvp ? (fractionalFactor > 1 ? numberValue(pvp.precio) / fractionalFactor : numberValue(pvp.precio)) : null;
     const marginSales = salePrices.filter((sale) => sale.quantity > 0 && sale.priceWithIva > 0);
     const soldQuantity = marginSales.reduce((sum, sale) => sum + sale.quantity, 0);
@@ -614,7 +616,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
       category: hasText(item.categoria), type: hasText(item.tipo), provider: hasText(provider?.nombre_proveedor),
       costProvider: costAvailable, costWithIva: costIvaAvailable, publicCost: priceAvailable,
       publicCostWithIva: publicIvaAvailable, currentPriceWithIva: currentPriceAvailable,
-      pricePuntoPas: hasNumber(puntoPas?.precio ?? priceLevel?.precio), pricePvp: hasNumber(pvp?.precio),
+      pricePuntoPas: hasNumber(puntoPas?.precio), pricePvp: hasNumber(pvp?.precio),
       salePrice: salePriceAvailable, saleDate: hasText(saleDateByProduct.get(item.codigo)),
       lastPurchase: hasText(provider?.fecha_ultima_compra) && dayjs(provider?.fecha_ultima_compra).isValid(),
       lastPurchaseQuantity: hasNumber(provider?.cantidad_ultima_compra_proveedor), stockTotal: stockByProduct.has(item.codigo),
