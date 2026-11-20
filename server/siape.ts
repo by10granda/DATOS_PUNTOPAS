@@ -691,7 +691,7 @@ export const loadSiapeProducts = async (
     const rowSaleAverage = quantity > 0 && revenueByProduct.get(item.codigo)
       ? numberValue(revenueByProduct.get(item.codigo)) / quantity / 1.15 : rowSalePrice;
     const publicIvaAvailable = rowSaleAverage ? salePriceAvailable : priceAvailable;
-    const currentPriceAvailable = effectivePuntoPasPrice ? hasNumber(puntoPas?.precio ?? priceLevel?.precio) : priceAvailable;
+    const currentPriceAvailable = hasNumber(puntoPas?.precio) || hasNumber(pvp?.precio) || priceAvailable;
     const quantitiesAvailable = sourceSales.every((sale) => hasNumber(sale.cantidad_vendida));
     const warehouseStockAvailable = warehouseAvailabilityByProduct.get(item.codigo) ?? false;
     const profitAvailable = quantitiesAvailable && costIvaAvailable && (sourceSales.length > 0 ? salePriceAvailable : publicIvaAvailable);

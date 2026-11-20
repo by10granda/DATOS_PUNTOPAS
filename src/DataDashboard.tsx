@@ -651,7 +651,7 @@ export default function DataDashboard({ branches, initialBranch, onClose }: { br
             />
             <DetailTile label="Cantidad comprada la última vez" value={selectedProduct.row.lastPurchaseQuantity ? selectedProduct.row.lastPurchaseQuantity.toLocaleString('es-EC') : 'NO CONSTA'} sub={selectedProduct.row.lastPurchase || 'sin fecha'} />
             <DetailTile label="Precio compra última vez + IVA" value={selectedProduct.row.missingFields?.includes('costWithIva') ? 'NO CONSTA' : money(selectedProduct.row.costWithIva)} sub={`Proveedor: ${selectedProduct.row.provider || 'NO CONSTA'}`} />
-            <DetailTile label="Precio de venta actual" value={money(selectedProduct.row.currentPriceWithIva)} sub={`Base sin IVA: ${selectedProduct.row.missingFields?.includes('pricePuntoPas') ? 'NO HAY' : money(selectedProduct.row.pricePuntoPas || selectedProduct.row.publicCost)}`} />
+            <DetailTile label="Precio de venta actual" value={money(selectedProduct.row.currentPriceWithIva)} sub={`Base sin IVA: ${money(selectedProduct.row.currentPriceWithIva / 1.15)}`} />
             <DetailTile label="Margen actual de ganancia" value={percent(selectedProduct.row.currentMarginPercent)} sub="sobre costo + IVA" accent />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">

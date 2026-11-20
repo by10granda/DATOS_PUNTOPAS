@@ -606,7 +606,7 @@ export const loadSiapeProducts = async (dateStart, dateEnd, bucket = 'hour', bra
     const rowSaleAverage = quantity > 0 && revenueByProduct.get(item.codigo)
       ? numberValue(revenueByProduct.get(item.codigo)) / quantity / 1.15 : rowSalePrice;
     const publicIvaAvailable = rowSaleAverage ? salePriceAvailable : priceAvailable;
-    const currentPriceAvailable = effectivePuntoPasPrice ? hasNumber(puntoPas?.precio ?? priceLevel?.precio) : priceAvailable;
+    const currentPriceAvailable = hasNumber(puntoPas?.precio) || hasNumber(pvp?.precio) || priceAvailable;
     const quantitiesAvailable = sourceSales.every((sale) => hasNumber(sale.cantidad_vendida));
     const warehouseStockAvailable = warehouseAvailabilityByProduct.get(item.codigo) ?? false;
     const profitAvailable = quantitiesAvailable && costIvaAvailable && (sourceSales.length > 0 ? salePriceAvailable : publicIvaAvailable);
@@ -674,7 +674,14 @@ const buildRow = (product) => {
   const publicCost = product.price;
   const salePrice = salesXMonths > 0 && product.salesRevenueWithIva ? product.salesRevenueWithIva / salesXMonths / 1.15 : product.salePrice || 0;
   const publicCostWithIva = (salePrice || publicCost) * 1.15;
-  const currentPriceWithIva = (product.pricePuntoPas || publicCost) * 1.15;
+  // "Precio Actual" is built from the price levels returned by reporteinventario:
+  // PUNTO PAS wins, then PVP. Catalog price is only a last resort.
+  const currentPriceBase = product.pricePuntoPas > 0
+    ? product.pricePuntoPas
+    : (product.pricePvp ?? 0) > 0
+      ? product.pricePvp
+      : publicCost;
+  const currentPriceWithIva = currentPriceBase * 1.15;
   const catalogUnitProfit = publicCostWithIva - costWithIva;
   const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
   const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;

@@ -173,7 +173,14 @@ export const buildRow = (product: ProductRecord, periodMonths: PeriodMonths): Pr
   const publicCost = product.price;
   const salePrice = salesXMonths > 0 && product.salesRevenueWithIva ? product.salesRevenueWithIva / salesXMonths / 1.15 : product.salePrice || 0;
   const publicCostWithIva = (salePrice || publicCost) * 1.15;
-  const currentPriceWithIva = (product.pricePuntoPas || publicCost) * 1.15;
+  // "Precio Actual" is built from the price levels returned by reporteinventario:
+  // PUNTO PAS wins, then PVP. Catalog price is only a last resort.
+  const currentPriceBase = product.pricePuntoPas > 0
+    ? product.pricePuntoPas
+    : (product.pricePvp ?? 0) > 0
+      ? product.pricePvp as number
+      : publicCost;
+  const currentPriceWithIva = currentPriceBase * 1.15;
   const catalogUnitProfit = publicCostWithIva - costWithIva;
   const totalProfit = product.salesProfitWithIva ?? catalogUnitProfit * salesXMonths;
   const unitProfit = salesXMonths > 0 ? totalProfit / salesXMonths : catalogUnitProfit;
