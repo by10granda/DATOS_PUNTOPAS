@@ -239,3 +239,26 @@ export type CompactDataDashboardResponse = {
   dictionaries: DataDashboardDictionaries;
   rows: DataDashboardTuple[];
 };
+
+/**
+ * Public product catalog: only what a customer needs to browse (code,
+ * description and sale price with IVA). No costs, stock or margins travel here.
+ */
+export type CatalogProduct = {
+  code: string;
+  description: string;
+  line: string;
+  category: string;
+  type: string;
+  price: number;
+  priceAvailable: boolean;
+};
+
+export type CatalogResponse = {
+  branch: string;
+  generatedAt: string;
+  lines: string[];
+  categories: string[];
+  types: string[];
+  rows: CatalogProduct[];
+};

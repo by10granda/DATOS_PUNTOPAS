@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import path from 'node:path';
 import fs from 'node:fs';
 import dayjs from 'dayjs';
-import { buildDashboard, buildProductOverview, compactDashboard, compactProductOverview } from './analytics';
+import { buildDashboard, buildProductOverview, compactCatalog, compactDashboard, compactProductOverview } from './analytics';
 import { createSnapshotLoader, loadSiapeProducts, loadWarehouseNames, resolveBranchConfig } from './siape';
 import type { SiapeSnapshot } from './siape';
 import type { Branch, PeriodMonths } from './types';
@@ -66,6 +66,8 @@ const dashboardCache = new Map<string, { loadedAt: number; ttlMs: number; payloa
 const dashboardInflight = new Map<string, Promise<unknown>>();
 const DASHBOARD_TTL_MS = Number(process.env.DASHBOARD_CACHE_TTL_MS ?? 45 * 1000);
 const DASHBOARD_HISTORY_TTL_MS = Number(process.env.DASHBOARD_HISTORY_CACHE_TTL_MS ?? 10 * 60 * 1000);
+// The public catalog only publishes prices, which do not change every minute.
+const CATALOG_TTL_MS = Number(process.env.CATALOG_CACHE_TTL_MS ?? 10 * 60 * 1000);
 const DASHBOARD_CACHE_ENTRIES = Number(process.env.DASHBOARD_CACHE_ENTRIES ?? 3);
 
 const dashboardTtl = (dateEnd: string) => dayjs(dateEnd).isBefore(dayjs().format('YYYY-MM-DD'))
@@ -135,13 +137,14 @@ app.get('/api/dashboard', async (req, res) => {
 
     if (!branch) {
       const payload = buildDashboard([], branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd });
-      res.json(req.query.compact === '1' ? compactDashboard(payload) : payload);
+      res.json(req.query.catalog === '1' ? compactCatalog(payload) : req.query.compact === '1' ? compactDashboard(payload) : payload);
       return;
     }
 
     resolveBranchConfig(branch);
     const compact = req.query.compact === '1';
-    const cacheKey = JSON.stringify([branch, effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, compact]);
+    const catalog = req.query.catalog === '1';
+    const cacheKey = JSON.stringify([branch, effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, compact, catalog]);
     const cached = readDashboardCache(cacheKey);
     if (cached) {
       res.json(cached);
@@ -156,8 +159,8 @@ app.get('/api/dashboard', async (req, res) => {
     const request = (async () => {
       const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
       const payload = buildDashboard(products, branches, { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, warehouseNames });
-      const transported = compact ? compactDashboard(payload) : payload;
-      rememberDashboard(cacheKey, transported, dashboardTtl(dateEnd));
+      const transported = catalog ? compactCatalog(payload) : compact ? compactDashboard(payload) : payload;
+      rememberDashboard(cacheKey, transported, catalog ? CATALOG_TTL_MS : dashboardTtl(dateEnd));
       return transported;
     })().finally(() => {
       dashboardInflight.delete(cacheKey);

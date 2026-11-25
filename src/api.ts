@@ -7,6 +7,7 @@ import type {
   DataDashboardResponse,
   CompactDataDashboardResponse,
   DataDashboardRow,
+  CatalogResponse,
 } from './types';
 
 const apiUrl = (path: string) => `${path}`;
@@ -152,6 +153,21 @@ export async function fetchDashboard(params: {
     }
   }
   return rehydrateDashboard(await response.json());
+}
+
+export async function fetchCatalog(branch: string): Promise<CatalogResponse> {
+  const query = new URLSearchParams({ catalog: '1', branch, periodMonths: '1' });
+  const response = await fetch(apiUrl(`/api/dashboard?${query.toString()}`), { cache: 'no-store' });
+  if (!response.ok) {
+    const body = await response.text();
+    try {
+      const error = JSON.parse(body) as { message?: string };
+      throw new Error(error?.message ? `${error.message} (HTTP ${response.status})` : `No se pudo cargar el catálogo (HTTP ${response.status})`);
+    } catch {
+      throw new Error(`No se pudo cargar el catálogo (HTTP ${response.status}): ${body.slice(0, 180)}`);
+    }
+  }
+  return response.json();
 }
 
 export async function fetchProductOverview(periodMonths: number, refresh = false, branch = 'ALMACEN PAS'): Promise<ProductOverviewResponse> {

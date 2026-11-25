@@ -333,18 +333,31 @@ function App() {
             {branches.length === 0 ? (
               <div className="text-sm text-slate-500">Cargando sucursales...</div>
             ) : branches.map((branch) => (
-              <button
+              <div
                 key={branch.name}
-                onClick={() => selectBranch(branch.name)}
                 className={`group relative overflow-hidden rounded-[1.4rem] border bg-white p-4 text-left text-slate-950 transition duration-300 hover:-translate-y-1 hover:shadow-xl ${selectedBranch === branch.name ? 'border-2 border-corporateRed shadow-2xl shadow-red-100' : 'border-slate-200 hover:border-corporateRed'}`}
               >
                 <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-full bg-corporateRed/10 transition group-hover:bg-corporateRed/20" />
-                <div className="relative text-xs font-black uppercase tracking-[0.24em] opacity-70">Sucursal</div>
-                <div className="mt-2 text-xl font-black">{branch.name}</div>
-                <div className="relative mt-5 h-1.5 overflow-hidden rounded-full bg-slate-200/60 dark:bg-slate-700">
-                  <div className={`h-full rounded-full ${selectedBranch === branch.name ? 'bg-corporateRed' : 'bg-slate-300'}`} style={{ width: '68%' }} />
-                </div>
-              </button>
+                <button onClick={() => selectBranch(branch.name)} className="relative block w-full text-left">
+                  <div className="text-xs font-black uppercase tracking-[0.24em] opacity-70">Sucursal</div>
+                  <div className="mt-2 text-xl font-black">{branch.name}</div>
+                  <div className="relative mt-5 h-1.5 overflow-hidden rounded-full bg-slate-200/60 dark:bg-slate-700">
+                    <div className={`h-full rounded-full ${selectedBranch === branch.name ? 'bg-corporateRed' : 'bg-slate-300'}`} style={{ width: '68%' }} />
+                  </div>
+                </button>
+                <a
+                  href={`/catalogo?branch=${encodeURIComponent(branch.name)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relative mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-600 transition hover:border-corporateRed hover:bg-corporateRed hover:text-white"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <rect x="4" y="3" width="16" height="18" rx="2" />
+                    <path d="M8 8h8M8 12h8M8 16h5" />
+                  </svg>
+                  Ver catálogo
+                </a>
+              </div>
             ))}
           </div>
         </section>

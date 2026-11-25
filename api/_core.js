@@ -737,6 +737,35 @@ export const compactDashboard = (payload) => {
   };
 };
 
+/**
+ * Public catalog payload: code, description and sale price with IVA only.
+ * Costs, stock, margins and sales history never leave the server.
+ */
+export const compactCatalog = (payload) => {
+  const facets = (values = []) => Array.from(new Set(values.filter((value) => value && value.trim()))).sort((a, b) => a.localeCompare(b, 'es'));
+  return {
+    branch: payload.branch ?? '',
+    generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+    lines: facets(payload.availableLines),
+    categories: facets(payload.availableCategories),
+    types: facets(payload.availableTypes),
+    rows: payload.rows
+      .filter((row) => (row.description ?? '').trim().length > 0)
+      .map((row) => ({
+        code: row.code,
+        description: row.description,
+        line: row.line,
+        category: row.category,
+        type: row.type,
+        price: row.currentPriceWithIva,
+        priceAvailable: !(row.missingFields ?? []).includes('currentPriceWithIva')
+          && Number.isFinite(row.currentPriceWithIva)
+          && row.currentPriceWithIva > 0,
+      }))
+      .sort((a, b) => a.description.localeCompare(b.description, 'es')),
+  };
+};
+
 export const compactProductOverview = (payload) => {
   const createDictionary = () => {
     const values = [];

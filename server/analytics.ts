@@ -1,6 +1,35 @@
 import dayjs from 'dayjs';
 import type { DashboardResponse, PeriodMonths, ProductOverviewResponse, ProductOverviewRow, ProductRecord, ProductRow } from './types';
-import type { CompactDashboardResponse, CompactDataDashboardResponse, DataDashboardTuple } from '../src/types';
+import type { CompactDashboardResponse, CompactDataDashboardResponse, DataDashboardTuple, CatalogResponse } from '../src/types';
+
+/**
+ * Public catalog payload: code, description and sale price with IVA only.
+ * Costs, stock, margins and sales history never leave the server.
+ */
+export const compactCatalog = (payload: DashboardResponse): CatalogResponse => {
+  const facets = (values: string[] = []) => Array.from(new Set(values.filter((value) => value && value.trim()))).sort((a, b) => a.localeCompare(b, 'es'));
+  return {
+    branch: payload.branch ?? '',
+    generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+    lines: facets(payload.availableLines),
+    categories: facets(payload.availableCategories),
+    types: facets(payload.availableTypes),
+    rows: payload.rows
+      .filter((row) => (row.description ?? '').trim().length > 0)
+      .map((row) => ({
+        code: row.code,
+        description: row.description,
+        line: row.line,
+        category: row.category,
+        type: row.type,
+        price: row.currentPriceWithIva,
+        priceAvailable: !(row.missingFields ?? []).includes('currentPriceWithIva')
+          && Number.isFinite(row.currentPriceWithIva)
+          && row.currentPriceWithIva > 0,
+      }))
+      .sort((a, b) => a.description.localeCompare(b.description, 'es')),
+  };
+};
 
 export const compactDashboard = (payload: DashboardResponse): DashboardResponse | CompactDashboardResponse => {
   const seriesKeys = ['monthlySales', 'hourlySales'] as const;

@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { branches, buildDashboard, compactDashboard, loadBranchData, resolveBranchConfig } from './_core.js';
+import { branches, buildDashboard, compactCatalog, compactDashboard, loadBranchData, resolveBranchConfig } from './_core.js';
 
 export const maxDuration = 60;
 
@@ -13,6 +13,8 @@ const dashboardCache = new Map();
 const dashboardInflight = new Map();
 const DASHBOARD_TTL_MS = Number(process.env.DASHBOARD_CACHE_TTL_MS ?? 45 * 1000);
 const DASHBOARD_HISTORY_TTL_MS = Number(process.env.DASHBOARD_HISTORY_CACHE_TTL_MS ?? 10 * 60 * 1000);
+// The public catalog only publishes prices, which do not change every minute.
+const CATALOG_TTL_MS = Number(process.env.CATALOG_CACHE_TTL_MS ?? 10 * 60 * 1000);
 const DASHBOARD_CACHE_ENTRIES = Number(process.env.DASHBOARD_CACHE_ENTRIES ?? 3);
 
 const dashboardTtl = (dateEnd) => dayjs(dateEnd).isBefore(dayjs().format('YYYY-MM-DD')) ? DASHBOARD_HISTORY_TTL_MS : DASHBOARD_TTL_MS;
@@ -63,11 +65,12 @@ export default async function handler(req, res) {
   try {
     const { dateStart, dateEnd, effectivePeriodMonths } = resolveDateRange(query, periodMonths);
     const params = { branch, periodMonths: effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd };
-    const transport = (payload) => queryValue(query.compact) === '1' ? compactDashboard(payload) : payload;
+    const compact = queryValue(query.compact) === '1';
+    const catalog = queryValue(query.catalog) === '1';
+    const transport = (payload) => catalog ? compactCatalog(payload) : compact ? compactDashboard(payload) : payload;
     if (!branch) return res.status(200).json(transport(buildDashboard([], params)));
     resolveBranchConfig(branch);
-    const compact = queryValue(query.compact) === '1';
-    const cacheKey = JSON.stringify([branch, effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, compact]);
+    const cacheKey = JSON.stringify([branch, effectivePeriodMonths, search, category, brand, line, type, productCode, dateStart, dateEnd, compact, catalog]);
     const cached = readDashboardCache(cacheKey);
     if (cached) return res.status(200).json(cached);
     const pending = dashboardInflight.get(cacheKey);
@@ -76,8 +79,8 @@ export default async function handler(req, res) {
     const request = (async () => {
       const { products, warehouseNames } = await loadBranchData(dateStart, dateEnd, dateStart === dateEnd ? 'hour' : 'week', branch);
       const payload = buildDashboard(products, { ...params, warehouseNames });
-      const transported = compact ? compactDashboard(payload) : payload;
-      rememberDashboard(cacheKey, transported, dashboardTtl(dateEnd));
+      const transported = transport(payload);
+      rememberDashboard(cacheKey, transported, catalog ? CATALOG_TTL_MS : dashboardTtl(dateEnd));
       return transported;
     })().finally(() => {
       dashboardInflight.delete(cacheKey);
