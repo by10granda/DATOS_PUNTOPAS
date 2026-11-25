@@ -241,8 +241,9 @@ export type CompactDataDashboardResponse = {
 };
 
 /**
- * Public product catalog: only what a customer needs to browse (code,
- * description and sale price with IVA). No costs, stock or margins travel here.
+ * Public product catalog: what a customer needs to browse (code, description,
+ * sale price with IVA and the stock kept in each warehouse). Costs, margins and
+ * sales history never travel here.
  */
 export type CatalogProduct = {
   code: string;
@@ -252,6 +253,8 @@ export type CatalogProduct = {
   type: string;
   price: number;
   priceAvailable: boolean;
+  stockTotal: number;
+  warehouseStocks: Record<string, number>;
 };
 
 export type CatalogResponse = {

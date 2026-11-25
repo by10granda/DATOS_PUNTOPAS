@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchBranches, fetchCatalog } from './api';
 import { catalogImageUrl, exportCatalogPdf, type CatalogPdfGrouping } from './catalog';
 import type { Branch, CatalogProduct, CatalogResponse } from './types';
-import { money } from './utils';
+import { money, warehouseStockTotal } from './utils';
 
 const PAGE_SIZE = 60;
 const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+const stockText = (value: number) => Number.isInteger(value)
+  ? value.toLocaleString('es-EC')
+  : value.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const readBranchFromUrl = () => {
   const value = new URLSearchParams(window.location.search).get('branch');
@@ -35,6 +38,8 @@ function ImagePlaceholder() {
 function CatalogCard({ row, withImages, eager }: { row: CatalogProduct; withImages: boolean; eager?: boolean }) {
   const [failed, setFailed] = useState(false);
   const imageUrl = withImages ? catalogImageUrl(row.code) : null;
+  const warehouseEntries = Object.entries(row.warehouseStocks ?? {}).sort(([a], [b]) => a.localeCompare(b, 'es'));
+  const totalStock = warehouseStockTotal(row);
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-[1.4rem] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#ff0000]/40 hover:shadow-[0_24px_48px_rgba(15,23,42,0.14)]">
@@ -57,6 +62,29 @@ function CatalogCard({ row, withImages, eager }: { row: CatalogProduct; withImag
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <p className="line-clamp-2 min-h-[2.6rem] text-sm font-bold leading-snug text-slate-800">{row.description}</p>
+        <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">Stock por bodega</p>
+            <span className="inline-flex items-baseline gap-1 rounded-full bg-[#0b1f3a] px-2 py-0.5 text-[10px] font-black text-white">
+              <span className="text-[8px] uppercase tracking-[0.1em] text-white/60">Total</span>
+              <span className="tabular-nums">{stockText(totalStock)}</span>
+            </span>
+          </div>
+          {warehouseEntries.length ? (
+            <ul className="mt-2 space-y-1">
+              {warehouseEntries.map(([warehouse, stock]) => (
+                <li key={warehouse} className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500" title={warehouse}>{warehouse}</span>
+                  <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-black tabular-nums ${stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200/70 text-slate-500'}`}>
+                    {stockText(stock)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">Sin bodegas registradas</p>
+          )}
+        </div>
         <div className="mt-auto flex items-end justify-between gap-2 border-t border-dashed border-slate-200 pt-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Precio</p>

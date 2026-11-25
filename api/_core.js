@@ -738,11 +738,17 @@ export const compactDashboard = (payload) => {
 };
 
 /**
- * Public catalog payload: code, description and sale price with IVA only.
- * Costs, stock, margins and sales history never leave the server.
+ * Public catalog payload: code, description, sale price with IVA and the stock
+ * kept in each warehouse. Costs, margins and sales history never leave the server.
  */
 export const compactCatalog = (payload) => {
   const facets = (values = []) => Array.from(new Set(values.filter((value) => value && value.trim()))).sort((a, b) => a.localeCompare(b, 'es'));
+  const cleanStocks = (stocks = {}) => Object.fromEntries(
+    Object.entries(stocks)
+      .map(([name, value]) => [name.trim(), Math.round(Number(value) * 100) / 100])
+      .filter(([name, value]) => name.length > 0 && Number.isFinite(value))
+      .sort(([a], [b]) => a.localeCompare(b, 'es')),
+  );
   return {
     branch: payload.branch ?? '',
     generatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
@@ -751,17 +757,23 @@ export const compactCatalog = (payload) => {
     types: facets(payload.availableTypes),
     rows: payload.rows
       .filter((row) => (row.description ?? '').trim().length > 0)
-      .map((row) => ({
-        code: row.code,
-        description: row.description,
-        line: row.line,
-        category: row.category,
-        type: row.type,
-        price: row.currentPriceWithIva,
-        priceAvailable: !(row.missingFields ?? []).includes('currentPriceWithIva')
-          && Number.isFinite(row.currentPriceWithIva)
-          && row.currentPriceWithIva > 0,
-      }))
+      .map((row) => {
+        const warehouseStocks = cleanStocks(row.warehouseStocks ?? {});
+        const warehouseTotal = Object.values(warehouseStocks).reduce((sum, value) => sum + value, 0);
+        return {
+          code: row.code,
+          description: row.description,
+          line: row.line,
+          category: row.category,
+          type: row.type,
+          price: row.currentPriceWithIva,
+          priceAvailable: !(row.missingFields ?? []).includes('currentPriceWithIva')
+            && Number.isFinite(row.currentPriceWithIva)
+            && row.currentPriceWithIva > 0,
+          stockTotal: Object.keys(warehouseStocks).length ? Math.round(warehouseTotal * 100) / 100 : Number(row.stockTotal) || 0,
+          warehouseStocks,
+        };
+      })
       .sort((a, b) => a.description.localeCompare(b.description, 'es')),
   };
 };
