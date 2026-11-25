@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchBranches, fetchCatalog } from './api';
-import { catalogImageUrl, exportCatalogPdf, type CatalogPdfGrouping } from './catalog';
+import { catalogImageUrl, exportCatalogPdf, type CatalogPdfGrouping, type CatalogPdfMode } from './catalog';
 import type { Branch, CatalogProduct, CatalogResponse } from './types';
 import { money, warehouseStockTotal } from './utils';
 
@@ -113,6 +113,9 @@ export default function CatalogPage() {
   const [category, setCategory] = useState('TODOS');
   const [type, setType] = useState('TODOS');
   const [grouping, setGrouping] = useState<CatalogPdfGrouping>('none');
+  const [pdfMode, setPdfMode] = useState<CatalogPdfMode>('visual');
+  const [pdfLimit, setPdfLimit] = useState(60);
+  const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [visible, setVisible] = useState(PAGE_SIZE);
@@ -186,12 +189,23 @@ export default function CatalogPage() {
   const downloadPdf = async () => {
     setPdfBusy(true);
     setPdfError(null);
+    setPdfProgress(null);
     try {
-      await exportCatalogPdf(filtered, { branch, grouping, filterLabel: pdfLabel });
+      await exportCatalogPdf(filtered, {
+        branch,
+        grouping,
+        filterLabel: pdfLabel,
+        mode: pdfMode,
+        includeImages: pdfMode === 'visual' && withImages,
+        limit: pdfMode === 'visual' ? pdfLimit : undefined,
+        totalRows: filtered.length,
+        onProgress: (done, total) => setPdfProgress({ done, total }),
+      });
     } catch (err) {
       setPdfError(err instanceof Error ? err.message : 'No se pudo generar el PDF');
     } finally {
       setPdfBusy(false);
+      setPdfProgress(null);
     }
   };
 
@@ -303,6 +317,27 @@ export default function CatalogPage() {
 
             <div className="flex flex-wrap items-center gap-2">
               <select
+                value={pdfMode}
+                onChange={(event) => setPdfMode(event.target.value as CatalogPdfMode)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-600 outline-none transition focus:border-[#ff0000]/60"
+                aria-label="Tipo de PDF"
+              >
+                <option value="visual">Catálogo visual</option>
+                <option value="list">Lista de precios</option>
+              </select>
+              {pdfMode === 'visual' && (
+                <select
+                  value={pdfLimit}
+                  onChange={(event) => setPdfLimit(Number(event.target.value))}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-600 outline-none transition focus:border-[#ff0000]/60"
+                  aria-label="Productos en el catálogo visual"
+                >
+                  <option value={60}>60 productos</option>
+                  <option value={120}>120 productos</option>
+                  <option value={240}>240 productos</option>
+                </select>
+              )}
+              <select
                 value={grouping}
                 onChange={(event) => setGrouping(event.target.value as CatalogPdfGrouping)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-600 outline-none transition focus:border-[#ff0000]/60"
@@ -319,10 +354,22 @@ export default function CatalogPage() {
                   <path d="M12 4v10m0 0 4-4m-4 4-4-4" />
                   <path d="M5 18h14" />
                 </svg>
-                {pdfBusy ? 'Generando…' : 'Descargar PDF'}
+                {pdfBusy
+                  ? pdfMode === 'visual'
+                    ? (pdfProgress ? `Imágenes ${pdfProgress.done}/${pdfProgress.total}…` : 'Preparando…')
+                    : 'Generando…'
+                  : 'Descargar PDF'}
               </button>
             </div>
           </div>
+          {pdfMode === 'visual' && (filtered.length > pdfLimit || !withImages) && (
+            <div className="mt-2 flex flex-wrap justify-end gap-x-4 gap-y-1 text-right text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
+              {filtered.length > pdfLimit && (
+                <span>El PDF visual incluye {Math.min(filtered.length, pdfLimit).toLocaleString('es-EC')} de {filtered.length.toLocaleString('es-EC')} productos.</span>
+              )}
+              {!withImages && <span>Sin imágenes para esta sucursal: se usará el marco «SIN IMAGEN».</span>}
+            </div>
+          )}
         </section>
 
         {error ? (

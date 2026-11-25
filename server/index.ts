@@ -366,6 +366,28 @@ app.get('/api/product/:id', (_req, res) => {
   res.status(410).json({ message: 'El detalle de producto ahora se obtiene desde la tabla cargada por SIAPE.' });
 });
 
+app.get('/api/catalog-image', async (req, res) => {
+  const raw = typeof req.query.file === 'string' ? req.query.file : '';
+  const match = raw.match(/^(\d{1,8})_E\.png$/i);
+  if (!match) {
+    res.status(400).json({ message: 'Imagen no válida' });
+    return;
+  }
+  const file = `${match[1].padStart(8, '0')}_E.png`;
+  try {
+    const upstream = await fetch(`https://assets.distribuidor-puntopas.com/PRODUCTOS_ESMERALDAS2/${file}`, { signal: AbortSignal.timeout(20000) });
+    if (!upstream.ok) {
+      res.status(upstream.status).end();
+      return;
+    }
+    res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.end(Buffer.from(await upstream.arrayBuffer()));
+  } catch {
+    res.status(502).json({ message: 'No se pudo obtener la imagen' });
+  }
+});
+
 if (fs.existsSync(path.resolve(process.cwd(), 'dist'))) {
   const distPath = path.resolve(process.cwd(), 'dist');
   app.use(express.static(distPath));
