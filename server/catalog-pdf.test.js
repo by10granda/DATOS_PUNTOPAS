@@ -73,3 +73,39 @@ test('visual catalog builds a cover and a product grid respecting the limit', as
   assert.equal((raw.match(/PRODUCTO 9/g) ?? []).length, 0);
   assert.ok(doc.getNumberOfPages() >= 2, 'the cover and product grid need at least two pages');
 });
+
+test('price list can be downloaded without prices', async () => {
+  const { doc, fileName } = await buildCatalogPdf(
+    [row('00000166', 'RELOJ DE MESA', 'HOGAR', 23), row('00000200', 'TALADRO', 'FERRETERIA', 45.5)],
+    { branch: 'ALMACEN PAS', grouping: 'none', filterLabel: '', includePrices: false },
+  );
+
+  assert.equal(fileName, 'catalogo-almacen-pas-completo-sin-precios.pdf');
+  const raw = Buffer.from(doc.output('arraybuffer')).toString('latin1');
+  assert.match(raw, /sin precios/);
+  assert.equal(raw.includes('PRECIO'), false);
+  assert.equal(raw.includes('IVA incl.'), false);
+  assert.equal(raw.includes('$'), false);
+});
+
+test('visual catalog can be downloaded without prices', async () => {
+  const { doc, fileName } = await buildCatalogPdf(
+    [row('00000166', 'RELOJ DE MESA', 'HOGAR', 23)],
+    {
+      branch: 'ALMACEN PAS',
+      grouping: 'none',
+      filterLabel: '',
+      mode: 'visual',
+      includeImages: false,
+      includePrices: false,
+      limit: 1,
+      totalRows: 1,
+    },
+  );
+
+  assert.equal(fileName, 'catalogo-visual-almacen-pas-completo-sin-precios.pdf');
+  const raw = Buffer.from(doc.output('arraybuffer')).toString('latin1');
+  assert.match(raw, /sin precios/);
+  assert.equal(raw.includes('IVA incl.'), false);
+  assert.equal(raw.includes('$'), false);
+});

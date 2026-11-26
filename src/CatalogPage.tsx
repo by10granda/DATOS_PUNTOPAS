@@ -189,7 +189,7 @@ export default function CatalogPage() {
     window.history.replaceState({}, '', url.toString());
   };
 
-  const downloadPdf = async () => {
+  const downloadPdf = async (includePrices = true) => {
     setPdfBusy(true);
     setPdfError(null);
     setPdfProgress(null);
@@ -200,6 +200,7 @@ export default function CatalogPage() {
         filterLabel: pdfLabel,
         mode: pdfMode,
         includeImages: pdfMode === 'visual' && withImages,
+        includePrices,
         limit: pdfMode === 'visual' ? pdfLimit : undefined,
         totalRows: pdfRows.length,
         onProgress: (done, total) => setPdfProgress({ done, total }),
@@ -358,7 +359,7 @@ export default function CatalogPage() {
                 {groupingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               <button
-                onClick={downloadPdf}
+                onClick={() => downloadPdf(true)}
                 disabled={pdfBusy || loading || pdfRows.length === 0}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#102d84] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
               >
@@ -371,6 +372,17 @@ export default function CatalogPage() {
                     ? (pdfProgress ? `Imágenes ${pdfProgress.done}/${pdfProgress.total}…` : 'Preparando…')
                     : 'Generando…'
                   : 'Descargar PDF'}
+              </button>
+              <button
+                onClick={() => downloadPdf(false)}
+                disabled={pdfBusy || loading || pdfRows.length === 0}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff0000]/50 hover:text-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M4 4h7l9 9-7 7-9-9V4Z" />
+                  <circle cx="8.5" cy="8.5" r="1.4" />
+                </svg>
+                Descargar sin precio
               </button>
             </div>
           </div>

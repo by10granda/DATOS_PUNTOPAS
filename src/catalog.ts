@@ -34,6 +34,7 @@ export type CatalogPdfOptions = {
   filterLabel: string;
   mode?: CatalogPdfMode;
   includeImages?: boolean;
+  includePrices?: boolean;
   limit?: number;
   totalRows?: number;
   onProgress?: CatalogPdfProgress;
@@ -141,6 +142,7 @@ const drawListCatalog = (
 ) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const showPrices = options.includePrices !== false;
 
   const drawHeader = () => {
     doc.setFillColor(11, 31, 58);
@@ -170,7 +172,7 @@ const drawListCatalog = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text(`${rows.length} producto${rows.length === 1 ? '' : 's'} · Precios con IVA incluido`, 12, 35.5);
+  doc.text(`${rows.length} producto${rows.length === 1 ? '' : 's'} · ${showPrices ? 'Precios con IVA incluido' : 'Catalogo sin precios'}`, 12, 35.5);
   if (options.filterLabel) doc.text(options.filterLabel.slice(0, 120), 12, 40);
   doc.setTextColor(15, 23, 42);
 
@@ -214,21 +216,24 @@ const drawListCatalog = (
 
     autoTable(doc, {
       startY: cursor,
-      head: [['CÓDIGO', 'DESCRIPCIÓN', 'PRECIO']],
-      body: group.rows.map((row) => [
-        row.code,
-        row.description,
-        row.priceAvailable ? moneyValue(row.price) : 'CONSULTAR',
-      ]),
+      head: showPrices ? [['CÓDIGO', 'DESCRIPCIÓN', 'PRECIO']] : [['CÓDIGO', 'DESCRIPCIÓN']],
+      body: group.rows.map((row) => (showPrices
+        ? [row.code, row.description, row.priceAvailable ? moneyValue(row.price) : 'CONSULTAR']
+        : [row.code, row.description])),
       margin: { top: 25, left: 12, right: 12, bottom: 16 },
       styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.5, textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.15 },
       headStyles: { fillColor: [11, 31, 58], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [246, 247, 251] },
-      columnStyles: {
-        0: { cellWidth: 27 },
-        1: { cellWidth: 119 },
-        2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
-      },
+      columnStyles: showPrices
+        ? {
+            0: { cellWidth: 27 },
+            1: { cellWidth: 119 },
+            2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
+          }
+        : {
+            0: { cellWidth: 27 },
+            1: { cellWidth: 159 },
+          },
       didDrawPage: () => drawHeader(),
     });
     cursor = lastY() + 6;
@@ -240,7 +245,7 @@ const drawListCatalog = (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text('Distribuidor Punto PAS · Precios con IVA incluido', 12, pageHeight - 8);
+    doc.text(showPrices ? 'Distribuidor Punto PAS · Precios con IVA incluido' : 'Distribuidor Punto PAS · Catalogo sin precios', 12, pageHeight - 8);
     doc.text(`Pagina ${page} de ${pageCount}`, pageWidth - 12, pageHeight - 8, { align: 'right' });
   }
 };
@@ -253,6 +258,7 @@ const drawVisualCatalog = async (
 ) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const showPrices = options.includePrices !== false;
   const margin = 12;
   const contentTop = 27;
   const contentBottom = pageHeight - 14;
@@ -312,7 +318,7 @@ const drawVisualCatalog = async (
   doc.setTextColor(203, 213, 225);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text('Precios con IVA incluido', margin, 126);
+  doc.text(showPrices ? 'Precios con IVA incluido' : 'Catálogo sin precios', margin, 126);
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
@@ -337,7 +343,7 @@ const drawVisualCatalog = async (
   const stats = [
     { label: 'PRODUCTOS', value: rows.length.toLocaleString('es-EC') },
     { label: 'CON STOCK', value: rows.filter((row) => stockOf(row) > 0).length.toLocaleString('es-EC') },
-    { label: 'MONEDA', value: 'USD' },
+    showPrices ? { label: 'MONEDA', value: 'USD' } : { label: 'CATEGORÍAS', value: new Set(rows.map((row) => row.category).filter(Boolean)).size.toLocaleString('es-EC') },
   ];
   stats.forEach((stat, index) => {
     const x = margin + 8 + index * ((pageWidth - margin * 2 - 16) / 3);
@@ -363,7 +369,9 @@ const drawVisualCatalog = async (
   doc.line(margin, 262, pageWidth - margin, 262);
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
-  doc.text('DISTRIBUIDOR PUNTO PAS · CATÁLOGO INFORMATIVO · PRECIOS SUJETOS A CAMBIO', margin, 268);
+  doc.text(showPrices
+    ? 'DISTRIBUIDOR PUNTO PAS · CATÁLOGO INFORMATIVO · PRECIOS SUJETOS A CAMBIO'
+    : 'DISTRIBUIDOR PUNTO PAS · CATÁLOGO INFORMATIVO', margin, 268);
 
   const images = options.includeImages ? await preloadCatalogImages(rows, options.onProgress) : new Map<string, CatalogImage | null>();
   const groups = groupRows(rows, options.grouping);
@@ -419,16 +427,18 @@ const drawVisualCatalog = async (
     if (descriptionLines.length > 2) shownLines[1] = `${shownLines[1].replace(/\s+\S*$/, '')}…`;
     shownLines.forEach((line: string, index: number) => doc.text(line, x + 2.5, atY + 47 + index * 3.2));
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.4);
-    doc.setTextColor(148, 163, 184);
-    doc.text('IVA incl.', x + 2.5, atY + cardHeight - 4.5);
+    if (showPrices) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.4);
+      doc.setTextColor(148, 163, 184);
+      doc.text('IVA incl.', x + 2.5, atY + cardHeight - 4.5);
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(11, 31, 58);
-    doc.text(row.priceAvailable ? moneyValue(row.price) : 'CONSULTAR', x + cardWidth - 2.5, atY + cardHeight - 4.5, { align: 'right' });
-    doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(11, 31, 58);
+      doc.text(row.priceAvailable ? moneyValue(row.price) : 'CONSULTAR', x + cardWidth - 2.5, atY + cardHeight - 4.5, { align: 'right' });
+      doc.setTextColor(15, 23, 42);
+    }
   };
 
   const startPage = (title?: string) => {
@@ -483,7 +493,7 @@ const drawVisualCatalog = async (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.8);
     doc.setTextColor(148, 163, 184);
-    doc.text('Distribuidor Punto PAS · Precios con IVA incluido', margin, pageHeight - 7);
+    doc.text(showPrices ? 'Distribuidor Punto PAS · Precios con IVA incluido' : 'Distribuidor Punto PAS · Catalogo sin precios', margin, pageHeight - 7);
     doc.text(`Página ${page} de ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
   }
 };
@@ -497,15 +507,16 @@ export const buildCatalogPdf = async (rows: CatalogProduct[], options: CatalogPd
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const generated = new Date().toLocaleString('es-EC', { dateStyle: 'long', timeStyle: 'short' });
   const suffix = options.grouping === 'none' ? 'completo' : `por-${options.grouping === 'line' ? 'linea' : options.grouping === 'category' ? 'categoria' : 'tipo'}`;
+  const priceSuffix = options.includePrices === false ? '-sin-precios' : '';
 
   if (options.mode === 'visual') {
     const limited = options.limit && options.limit > 0 ? rows.slice(0, options.limit) : rows;
     await drawVisualCatalog(doc, limited, options, generated);
-    return { doc, fileName: `catalogo-visual-${safeFileName(options.branch)}-${suffix}.pdf` };
+    return { doc, fileName: `catalogo-visual-${safeFileName(options.branch)}-${suffix}${priceSuffix}.pdf` };
   }
 
   drawListCatalog(doc, rows, options, generated, autoTable);
-  return { doc, fileName: `catalogo-${safeFileName(options.branch)}-${suffix}.pdf` };
+  return { doc, fileName: `catalogo-${safeFileName(options.branch)}-${suffix}${priceSuffix}.pdf` };
 };
 
 export const exportCatalogPdf = async (rows: CatalogProduct[], options: CatalogPdfOptions) => {
