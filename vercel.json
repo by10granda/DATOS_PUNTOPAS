@@ -10,7 +10,7 @@
     "api/telegram-maderera-report.js": { "maxDuration": 60 },
     "api/product-warehouses.js": { "maxDuration": 60 },
     "api/export-warehouse-stocks.js": { "maxDuration": 60 },
-    "api/catalog-image.js": { "maxDuration": 30 }
+    "api/branches.js": { "maxDuration": 30 }
   },
   "crons": [
     { "path": "/api/product-overview?periodMonths=1&refresh=1", "schedule": "0 6 * * *" },

@@ -9,7 +9,7 @@ test('catalog images only resolve numeric codes', () => {
   assert.equal(catalogImageUrl('00000166'), 'https://assets.distribuidor-puntopas.com/PRODUCTOS_ESMERALDAS2/00000166_E.png');
   assert.equal(catalogImageUrl('PAS054'), null);
   assert.equal(catalogImageUrl(''), null);
-  assert.equal(catalogPdfImageUrl('41'), '/api/catalog-image?file=00000041_E.png');
+  assert.equal(catalogPdfImageUrl('41'), '/api/branches?image=00000041_E.png');
   assert.equal(catalogPdfImageUrl('PAS054'), null);
 });
 

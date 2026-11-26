@@ -20,7 +20,7 @@ export const catalogImageUrl = (code: string): string | null => {
  */
 export const catalogPdfImageUrl = (code: string): string | null => {
   if (!/^\d{1,8}$/.test(code)) return null;
-  return `/api/catalog-image?file=${code.padStart(8, '0')}_E.png`;
+  return `/api/branches?image=${code.padStart(8, '0')}_E.png`;
 };
 
 export type CatalogPdfGroup = 'line' | 'category' | 'type';
