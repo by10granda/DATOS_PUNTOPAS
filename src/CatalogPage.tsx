@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchBranches, fetchCatalog } from './api';
-import { catalogImageUrl, exportCatalogPdf, type CatalogPdfGrouping, type CatalogPdfMode } from './catalog';
+import { catalogImageUrl, exportCatalogPdf, hasCatalogStock, type CatalogPdfGrouping, type CatalogPdfMode } from './catalog';
 import type { Branch, CatalogProduct, CatalogResponse } from './types';
 import { money, warehouseStockTotal } from './utils';
 
@@ -115,6 +115,7 @@ export default function CatalogPage() {
   const [grouping, setGrouping] = useState<CatalogPdfGrouping>('none');
   const [pdfMode, setPdfMode] = useState<CatalogPdfMode>('visual');
   const [pdfLimit, setPdfLimit] = useState(60);
+  const [onlyWithStock, setOnlyWithStock] = useState(true);
   const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -169,12 +170,14 @@ export default function CatalogPage() {
   }, [rows, search, line, category, type]);
 
   const withImages = branch === 'ALMACEN PAS' || !!branches.find((item) => item.name === branch)?.hasImages;
+  const pdfRows = useMemo(() => (onlyWithStock ? filtered.filter(hasCatalogStock) : filtered), [filtered, onlyWithStock]);
   const shown = filtered.slice(0, visible);
   const pdfLabel = [
     line !== 'TODAS' ? `Línea: ${line}` : null,
     category !== 'TODOS' ? `Categoría: ${category}` : null,
     type !== 'TODOS' ? `Tipo: ${type}` : null,
     search.trim() ? `Búsqueda: "${search.trim()}"` : null,
+    onlyWithStock ? 'Solo con stock' : null,
   ].filter(Boolean).join('  ·  ');
 
   const changeBranch = (name: string) => {
@@ -191,14 +194,14 @@ export default function CatalogPage() {
     setPdfError(null);
     setPdfProgress(null);
     try {
-      await exportCatalogPdf(filtered, {
+      await exportCatalogPdf(pdfRows, {
         branch,
         grouping,
         filterLabel: pdfLabel,
         mode: pdfMode,
         includeImages: pdfMode === 'visual' && withImages,
         limit: pdfMode === 'visual' ? pdfLimit : undefined,
-        totalRows: filtered.length,
+        totalRows: pdfRows.length,
         onProgress: (done, total) => setPdfProgress({ done, total }),
       });
     } catch (err) {
@@ -316,6 +319,15 @@ export default function CatalogPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-600 transition hover:border-slate-300">
+                <input
+                  type="checkbox"
+                  checked={onlyWithStock}
+                  onChange={(event) => setOnlyWithStock(event.target.checked)}
+                  className="h-4 w-4 accent-[#ff0000]"
+                />
+                Solo con stock
+              </label>
               <select
                 value={pdfMode}
                 onChange={(event) => setPdfMode(event.target.value as CatalogPdfMode)}
@@ -347,7 +359,7 @@ export default function CatalogPage() {
               </select>
               <button
                 onClick={downloadPdf}
-                disabled={pdfBusy || loading || filtered.length === 0}
+                disabled={pdfBusy || loading || pdfRows.length === 0}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#102d84] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -362,12 +374,21 @@ export default function CatalogPage() {
               </button>
             </div>
           </div>
-          {pdfMode === 'visual' && (filtered.length > pdfLimit || !withImages) && (
+          {(onlyWithStock || (pdfMode === 'visual' && (pdfRows.length > pdfLimit || !withImages)) || pdfRows.length === 0) && (
             <div className="mt-2 flex flex-wrap justify-end gap-x-4 gap-y-1 text-right text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
-              {filtered.length > pdfLimit && (
-                <span>El PDF visual incluye {Math.min(filtered.length, pdfLimit).toLocaleString('es-EC')} de {filtered.length.toLocaleString('es-EC')} productos.</span>
+              {pdfRows.length === 0 ? (
+                <span className="text-rose-500">No hay productos con stock para estos filtros.</span>
+              ) : (
+                <>
+                  {onlyWithStock && (
+                    <span>Solo se incluyen productos con stock: {pdfRows.length.toLocaleString('es-EC')} de {filtered.length.toLocaleString('es-EC')}.</span>
+                  )}
+                  {pdfMode === 'visual' && pdfRows.length > pdfLimit && (
+                    <span>El PDF visual incluye {Math.min(pdfRows.length, pdfLimit).toLocaleString('es-EC')} de {pdfRows.length.toLocaleString('es-EC')} productos.</span>
+                  )}
+                  {pdfMode === 'visual' && !withImages && <span>Sin imágenes para esta sucursal: se usará el marco «SIN IMAGEN».</span>}
+                </>
               )}
-              {!withImages && <span>Sin imágenes para esta sucursal: se usará el marco «SIN IMAGEN».</span>}
             </div>
           )}
         </section>

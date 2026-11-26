@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildCatalogPdf, catalogImageUrl, catalogPdfImageUrl } from '../src/catalog.ts';
+import { buildCatalogPdf, catalogImageUrl, catalogPdfImageUrl, hasCatalogStock } from '../src/catalog.ts';
 
 const row = (code, description, line, price = 10) => ({ code, description, line, category: 'HOGAR', type: 'DECORACION', price, priceAvailable: true, stockTotal: 0, warehouseStocks: {} });
+
+test('stock-only filter keeps products with positive stock', () => {
+  assert.equal(hasCatalogStock({ stockTotal: 5 }), true);
+  assert.equal(hasCatalogStock({ stockTotal: 0.25 }), true);
+  assert.equal(hasCatalogStock({ stockTotal: 0 }), false);
+  assert.equal(hasCatalogStock({ stockTotal: -3 }), false);
+  assert.equal(hasCatalogStock({ warehouseStocks: { 'BODEGA GENERAL': 2 } }), true);
+  assert.equal(hasCatalogStock({ warehouseStocks: { 'BODEGA GENERAL': 0 } }), false);
+});
 
 test('catalog images only resolve numeric codes', () => {
   assert.equal(catalogImageUrl('41'), 'https://assets.distribuidor-puntopas.com/PRODUCTOS_ESMERALDAS2/00000041_E.png');

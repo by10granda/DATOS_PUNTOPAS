@@ -61,6 +61,12 @@ const groupRows = (rows: CatalogProduct[], grouping: CatalogPdfGrouping) => {
 
 const stockOf = (row: CatalogProduct) => Object.values(row.warehouseStocks ?? {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
 
+/** A product belongs in the stock-only PDF when its total on hand is positive. */
+export const hasCatalogStock = (row: CatalogProduct): boolean => {
+  const total = typeof row.stockTotal === 'number' ? row.stockTotal : stockOf(row);
+  return total > 0;
+};
+
 const pdfImageCache = new Map<string, CatalogImage | null>();
 
 const toCatalogImage = async (blob: Blob): Promise<CatalogImage> => {
